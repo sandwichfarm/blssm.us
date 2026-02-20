@@ -25,5 +25,5 @@ jobs:
         uses: BunnyWay/actions/deploy-script@main
         with:
           script_id: ${{ secrets.BUNNY_SCRIPT_ID }}
-          deploy_key: ${{ secrets.BUNNY_DEPLOY_KEY }}
+          deploy_key: ${{ secrets.BUNNY_API_KEY }}
           file: "dist/server.js"
