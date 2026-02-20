@@ -39,14 +39,17 @@ jobs:
             path="${file#dist/}"
             mime=$(file --brief --mime-type "$file")
             echo "Uploading $path ($mime)"
-            HTTP_CODE=$(curl -s --retry 3 -o /dev/null -w "%{http_code}" \
+            RESPONSE=$(curl -s --retry 3 -w "\n%{http_code}" \
               -X PUT "${BASE_URL}/${path}" \
               -H "AccessKey: ${BUNNY_SPA_STORAGE_PASSWORD}" \
-              -H "Content-Type: ${mime}" \
+              -H "Content-Type: application/octet-stream" \
               --data-binary "@${file}")
+            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | head -n -1)
             echo "  -> HTTP $HTTP_CODE"
             if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
-              echo "Upload failed with HTTP $HTTP_CODE"
+              echo "  -> Response: $BODY"
+              echo "  -> URL: https://${BUNNY_SPA_STORAGE_HOSTNAME}/***/${path}"
               exit 1
             fi
           done
