@@ -33,16 +33,22 @@ jobs:
           BUNNY_SPA_STORAGE_USERNAME: ${{ secrets.BUNNY_SPA_STORAGE_USERNAME }}
         run: |
           BASE_URL="https://${BUNNY_SPA_STORAGE_HOSTNAME}/${BUNNY_SPA_STORAGE_USERNAME}"
+          echo "BASE_URL: https://${BUNNY_SPA_STORAGE_HOSTNAME}/***"
 
           find dist -type f | while read -r file; do
             path="${file#dist/}"
             mime=$(file --brief --mime-type "$file")
             echo "Uploading $path ($mime)"
-            curl -sf --retry 3 \
+            HTTP_CODE=$(curl -s --retry 3 -o /dev/null -w "%{http_code}" \
               -X PUT "${BASE_URL}/${path}" \
               -H "AccessKey: ${BUNNY_SPA_STORAGE_PASSWORD}" \
               -H "Content-Type: ${mime}" \
-              --data-binary "@${file}"
+              --data-binary "@${file}")
+            echo "  -> HTTP $HTTP_CODE"
+            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+              echo "Upload failed with HTTP $HTTP_CODE"
+              exit 1
+            fi
           done
 
           echo "SPA deployed successfully"
