@@ -12,6 +12,7 @@ import { handleMirror } from "./handlers/mirror.ts";
 import { handleMedia } from "./handlers/media.ts";
 import { handleUploadCheck } from "./handlers/upload-check.ts";
 import { handleReport } from "./handlers/report.ts";
+import { handleSpa } from "./handlers/spa.ts";
 
 export async function route(
   request: Request,
@@ -65,6 +66,10 @@ export async function route(
     // DELETE /<sha256> — BUD-02: Delete blob
     else if (method === "DELETE" && /^\/[0-9a-f]{64}$/.test(path)) {
       response = await handleBlobDelete(request, storage, config);
+    }
+    // SPA fallback for all other GET requests
+    else if (method === "GET" && config.spaStoragePassword) {
+      response = await handleSpa(request, config);
     }
     // 404 for everything else
     else {

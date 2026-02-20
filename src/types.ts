@@ -62,6 +62,12 @@ export interface Config {
   /** Public Blossom server URL for auth server tag validation */
   serverUrl: string;
   maxUploadSize: number;
+  /** SPA storage zone password */
+  spaStoragePassword?: string;
+  /** SPA storage zone hostname (e.g. storage.bunnycdn.com) */
+  spaStorageHostname?: string;
+  /** SPA storage zone username */
+  spaStorageUsername?: string;
 }
 
 /** Auth result from Nostr event validation */

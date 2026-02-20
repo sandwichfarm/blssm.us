@@ -18,6 +18,9 @@ function getConfig(): Config {
     cdnHostname: env("BUNNY_CDN_HOSTNAME"),
     serverUrl: env("SERVER_URL"),
     maxUploadSize: parseInt(env("MAX_UPLOAD_SIZE", "104857600"), 10), // 100MB default
+    spaStoragePassword: process.env["BUNNY_SPA_STORAGE_PASSWORD"],
+    spaStorageHostname: process.env["BUNNY_SPA_STORAGE_HOSTNAME"],
+    spaStorageUsername: process.env["BUNNY_SPA_STORAGE_USERNAME"],
   };
 }
 
