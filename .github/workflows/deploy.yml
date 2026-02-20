@@ -1,0 +1,31 @@
+name: Deploy Edge Script
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v1.x
+
+      - name: Type check
+        run: deno task check
+
+      - name: Build bundle
+        run: deno task build
+
+      - name: Deploy to Bunny Edge Scripting
+        run: |
+          CODE=$(cat dist/server.js)
+          curl -sf --retry 3 \
+            -X POST "https://api.bunny.net/compute/script/${{ secrets.BUNNY_SCRIPT_ID }}/code" \
+            -H "AccessKey: ${{ secrets.BUNNY_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg code "$CODE" '{Code: $code}')"
