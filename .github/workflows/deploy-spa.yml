@@ -5,6 +5,7 @@ on:
     branches: [main, master]
     paths:
       - 'spa/**'
+      - '.github/workflows/deploy-spa.yml'
   workflow_dispatch:
 
 jobs:
