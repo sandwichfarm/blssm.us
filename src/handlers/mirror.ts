@@ -87,16 +87,17 @@ export async function handleMirror(
   // Store blob
   await storage.put(storage.blobPath(hash), remoteData, contentType);
 
-  // Update metadata
-  const meta = await addOwner(storage, hash, auth.pubkey, remoteData.byteLength, contentType);
-
-  // Update pubkey index
-  await addToIndex(storage, auth.pubkey, {
-    sha256: hash,
-    size: remoteData.byteLength,
-    type: contentType,
-    uploaded: meta.uploaded,
-  });
+  // Update metadata and index in parallel (independent storage paths)
+  const now = Math.floor(Date.now() / 1000);
+  const [meta] = await Promise.all([
+    addOwner(storage, hash, auth.pubkey, remoteData.byteLength, contentType),
+    addToIndex(storage, auth.pubkey, {
+      sha256: hash,
+      size: remoteData.byteLength,
+      type: contentType,
+      uploaded: now,
+    }),
+  ]);
 
   // Return blob descriptor
   const descriptor: BlobDescriptor = {

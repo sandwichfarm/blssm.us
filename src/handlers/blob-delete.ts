@@ -44,11 +44,11 @@ export async function handleBlobDelete(
     return errorResponse("You are not an owner of this blob", 403);
   }
 
-  // Remove owner (and blob if last owner)
-  await removeOwner(storage, sha256, auth.pubkey);
-
-  // Remove from pubkey index
-  await removeFromIndex(storage, auth.pubkey, sha256);
+  // Remove owner and index entry in parallel (independent storage paths)
+  await Promise.all([
+    removeOwner(storage, sha256, auth.pubkey),
+    removeFromIndex(storage, auth.pubkey, sha256),
+  ]);
 
   return new Response(null, { status: 200 });
 }

@@ -5,11 +5,16 @@ export function sha256Hex(data: Uint8Array): string {
   return bytesToHex(sha256(data));
 }
 
+/** Pre-computed hex lookup table (avoids toString(16).padStart per byte) */
+const HEX_TABLE: string[] = Array.from({ length: 256 }, (_, i) =>
+  i.toString(16).padStart(2, "0"),
+);
+
 /** Convert bytes to hex string */
 export function bytesToHex(bytes: Uint8Array): string {
   let hex = "";
   for (let i = 0; i < bytes.length; i++) {
-    hex += bytes[i].toString(16).padStart(2, "0");
+    hex += HEX_TABLE[bytes[i]];
   }
   return hex;
 }
@@ -42,14 +47,17 @@ export function fromBase64(b64: string): Uint8Array {
   return bytes;
 }
 
+/** Shared regex for 64-char lowercase hex strings */
+const HEX64_RE = /^[0-9a-f]{64}$/;
+
 /** Validate that a string is a 64-char lowercase hex string (SHA-256) */
 export function isValidSha256(hash: string): boolean {
-  return /^[0-9a-f]{64}$/.test(hash);
+  return HEX64_RE.test(hash);
 }
 
 /** Validate that a string is a 64-char lowercase hex pubkey */
 export function isValidPubkey(pubkey: string): boolean {
-  return /^[0-9a-f]{64}$/.test(pubkey);
+  return HEX64_RE.test(pubkey);
 }
 
 /** Get 2-char prefix for sharded storage paths */

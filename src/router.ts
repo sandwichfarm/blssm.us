@@ -14,6 +14,10 @@ import { handleUploadCheck } from "./handlers/upload-check.ts";
 import { handleReport } from "./handlers/report.ts";
 import { handleSpa } from "./handlers/spa.ts";
 
+/** Pre-compiled blob path regexes (avoid re-creation per request) */
+const BLOB_PATH_RE = /^\/[0-9a-f]{64}/;
+const BLOB_PATH_EXACT_RE = /^\/[0-9a-f]{64}$/;
+
 export async function route(
   request: Request,
   storage: StorageClient,
@@ -60,11 +64,11 @@ export async function route(
       response = await handleBlobList(request, url, storage, config);
     }
     // GET or HEAD /<sha256> — BUD-01: Retrieve blob
-    else if ((method === "GET" || method === "HEAD") && /^\/[0-9a-f]{64}/.test(path)) {
+    else if ((method === "GET" || method === "HEAD") && BLOB_PATH_RE.test(path)) {
       response = await handleBlobGet(request, storage, config);
     }
     // DELETE /<sha256> — BUD-02: Delete blob
-    else if (method === "DELETE" && /^\/[0-9a-f]{64}$/.test(path)) {
+    else if (method === "DELETE" && BLOB_PATH_EXACT_RE.test(path)) {
       response = await handleBlobDelete(request, storage, config);
     }
     // SPA fallback for all other GET requests

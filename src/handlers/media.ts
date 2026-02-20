@@ -77,14 +77,18 @@ export async function handleMedia(
 
   // Store as-is (no media processing in edge runtime)
   await storage.put(storage.blobPath(hash), data, contentType);
-  const meta = await addOwner(storage, hash, auth.pubkey, data.byteLength, contentType, nip94);
 
-  await addToIndex(storage, auth.pubkey, {
-    sha256: hash,
-    size: data.byteLength,
-    type: contentType,
-    uploaded: meta.uploaded,
-  });
+  // Update metadata and index in parallel (independent storage paths)
+  const now = Math.floor(Date.now() / 1000);
+  const [meta] = await Promise.all([
+    addOwner(storage, hash, auth.pubkey, data.byteLength, contentType, nip94),
+    addToIndex(storage, auth.pubkey, {
+      sha256: hash,
+      size: data.byteLength,
+      type: contentType,
+      uploaded: now,
+    }),
+  ]);
 
   // Return blob descriptor — same as regular upload since we store as-is
   const descriptor: BlobDescriptor = {

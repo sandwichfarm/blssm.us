@@ -21,16 +21,20 @@ export async function handleSpa(
   const headers = { AccessKey: config.spaStoragePassword };
   const baseUrl = `https://${config.spaStorageHostname}/${config.spaStorageUsername}`;
 
-  // Try the requested path first
-  let resp = await fetch(`${baseUrl}${path}`, { headers });
+  let resp: Response;
 
-  // If not found, fall back to /index.html for SPA client-side routing
-  if (resp.status === 404 && !hasFileExtension(path)) {
+  if (hasFileExtension(path)) {
+    // Static asset — fetch directly, 404 if missing (don't fall through to index.html)
+    resp = await fetch(`${baseUrl}${path}`, { headers });
+    if (resp.status === 404) {
+      return new Response("Not Found", { status: 404 });
+    }
+  } else {
+    // SPA route (no extension) — go directly to index.html
     resp = await fetch(`${baseUrl}/index.html`, { headers });
-  }
-
-  if (resp.status === 404) {
-    return new Response("Not Found", { status: 404 });
+    if (resp.status === 404) {
+      return new Response("Not Found", { status: 404 });
+    }
   }
 
   // Pass through with appropriate cache headers

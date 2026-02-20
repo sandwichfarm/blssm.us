@@ -123,8 +123,17 @@ export async function getBlocked(storage: StorageClient): Promise<BlockedConfig>
   return (await storage.getJson<BlockedConfig>("config/blocked.json")) || { hashes: [] };
 }
 
-/** Check if a hash is blocked */
+/** In-memory cache for blocked hashes (persists within edge instance lifetime) */
+let blockedCache: { hashes: Set<string>; expires: number } | null = null;
+const BLOCKED_CACHE_TTL_MS = 60_000;
+
+/** Check if a hash is blocked (cached with 60s TTL) */
 export async function isBlocked(storage: StorageClient, sha256: string): Promise<boolean> {
-  const blocked = await getBlocked(storage);
-  return blocked.hashes.includes(sha256);
+  const now = Date.now();
+  if (blockedCache && now < blockedCache.expires) {
+    return blockedCache.hashes.has(sha256);
+  }
+  const config = (await storage.getJson<BlockedConfig>("config/blocked.json")) || { hashes: [] };
+  blockedCache = { hashes: new Set(config.hashes), expires: now + BLOCKED_CACHE_TTL_MS };
+  return blockedCache.hashes.has(sha256);
 }

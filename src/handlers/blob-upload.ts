@@ -81,16 +81,17 @@ export async function handleBlobUpload(
   // Store blob
   await storage.put(storage.blobPath(hash), data, contentType);
 
-  // Update metadata (add owner)
-  const meta = await addOwner(storage, hash, auth.pubkey, data.byteLength, contentType, nip94);
-
-  // Update pubkey index
-  await addToIndex(storage, auth.pubkey, {
-    sha256: hash,
-    size: data.byteLength,
-    type: contentType,
-    uploaded: meta.uploaded,
-  });
+  // Update metadata and index in parallel (independent storage paths)
+  const now = Math.floor(Date.now() / 1000);
+  const [meta] = await Promise.all([
+    addOwner(storage, hash, auth.pubkey, data.byteLength, contentType, nip94),
+    addToIndex(storage, auth.pubkey, {
+      sha256: hash,
+      size: data.byteLength,
+      type: contentType,
+      uploaded: now,
+    }),
+  ]);
 
   // Return blob descriptor
   const descriptor: BlobDescriptor = {
