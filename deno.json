@@ -1,0 +1,11 @@
+{
+  "imports": {
+    "@noble/curves/": "npm:/@noble/curves@1.8.1/",
+    "@noble/hashes/": "npm:/@noble/hashes@1.6.1/"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "types": ["./types/bunny-sdk.d.ts"]
+  }
+}
