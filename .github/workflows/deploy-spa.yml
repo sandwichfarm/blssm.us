@@ -1,0 +1,47 @@
+name: Deploy SPA
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'spa/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: spa
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Deploy to Bunny Storage
+        env:
+          BUNNY_SPA_STORAGE_PASSWORD: ${{ secrets.BUNNY_SPA_STORAGE_PASSWORD }}
+          BUNNY_SPA_STORAGE_HOSTNAME: ${{ vars.BUNNY_SPA_STORAGE_HOSTNAME }}
+          BUNNY_SPA_STORAGE_USERNAME: ${{ vars.BUNNY_SPA_STORAGE_USERNAME }}
+        run: |
+          BASE_URL="https://${BUNNY_SPA_STORAGE_HOSTNAME}/${BUNNY_SPA_STORAGE_USERNAME}"
+
+          find dist -type f | while read -r file; do
+            path="${file#dist/}"
+            mime=$(file --brief --mime-type "$file")
+            echo "Uploading $path ($mime)"
+            curl -sf --retry 3 \
+              -X PUT "${BASE_URL}/${path}" \
+              -H "AccessKey: ${BUNNY_SPA_STORAGE_PASSWORD}" \
+              -H "Content-Type: ${mime}" \
+              --data-binary "@${file}"
+          done
+
+          echo "SPA deployed successfully"
