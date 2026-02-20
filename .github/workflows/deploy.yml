@@ -22,10 +22,8 @@ jobs:
         run: deno task build
 
       - name: Deploy to Bunny Edge Scripting
-        run: |
-          CODE=$(cat dist/server.js)
-          curl -sf --retry 3 \
-            -X POST "https://api.bunny.net/compute/script/${{ secrets.BUNNY_SCRIPT_ID }}/code" \
-            -H "AccessKey: ${{ secrets.BUNNY_API_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n --arg code "$CODE" '{Code: $code}')"
+        uses: BunnyWay/actions/deploy-script@main
+        with:
+          script_id: ${{ secrets.BUNNY_SCRIPT_ID }}
+          deploy_key: ${{ secrets.BUNNY_DEPLOY_KEY }}
+          file: "dist/server.js"
