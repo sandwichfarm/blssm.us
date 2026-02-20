@@ -8,10 +8,9 @@ export class StorageClient {
   public cdnHostname: string;
 
   constructor(config: Config) {
-    const region = config.storageRegion || "storage";
-    this.baseUrl = `https://${region}.bunnycdn.com/${config.storageZone}`;
-    this.accessKey = config.storageAccessKey;
-    this.zone = config.storageZone;
+    this.baseUrl = `https://${config.storageHostname}/${config.storageUsername}`;
+    this.accessKey = config.storagePassword;
+    this.zone = config.storageUsername;
     this.cdnHostname = config.cdnHostname;
   }
 

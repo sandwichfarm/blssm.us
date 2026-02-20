@@ -12,9 +12,9 @@ function getConfig(): Config {
   };
 
   return {
-    storageAccessKey: env("BUNNY_STORAGE_ACCESS_KEY"),
-    storageZone: env("BUNNY_STORAGE_ZONE"),
-    storageRegion: env("BUNNY_STORAGE_REGION", "storage"),
+    storagePassword: env("BUNNY_STORAGE_PASSWORD"),
+    storageHostname: env("BUNNY_STORAGE_HOSTNAME"),
+    storageUsername: env("BUNNY_STORAGE_USERNAME"),
     cdnHostname: env("BUNNY_CDN_HOSTNAME"),
     serverUrl: env("SERVER_URL"),
     maxUploadSize: parseInt(env("MAX_UPLOAD_SIZE", "104857600"), 10), // 100MB default

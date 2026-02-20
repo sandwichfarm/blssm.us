@@ -51,10 +51,15 @@ export interface BlockedConfig {
 
 /** Server configuration from environment */
 export interface Config {
-  storageAccessKey: string;
-  storageZone: string;
-  storageRegion: string;
+  /** Storage zone password (FTP & API Access → Password) */
+  storagePassword: string;
+  /** Storage zone hostname (FTP & API Access → Hostname, e.g. storage.bunnycdn.com) */
+  storageHostname: string;
+  /** Storage zone username (FTP & API Access → Username) */
+  storageUsername: string;
+  /** Public CDN hostname for blob URLs (e.g. myzone.b-cdn.net) */
   cdnHostname: string;
+  /** Public Blossom server URL for auth server tag validation */
   serverUrl: string;
   maxUploadSize: number;
 }
