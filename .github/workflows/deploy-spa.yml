@@ -27,31 +27,12 @@ jobs:
         run: bun run build
 
       - name: Deploy to Bunny Storage
-        env:
-          BUNNY_SPA_STORAGE_PASSWORD: ${{ secrets.BUNNY_SPA_STORAGE_PASSWORD }}
-          BUNNY_SPA_STORAGE_HOSTNAME: ${{ secrets.BUNNY_SPA_STORAGE_HOSTNAME }}
-          BUNNY_SPA_STORAGE_USERNAME: ${{ secrets.BUNNY_SPA_STORAGE_USERNAME }}
-        run: |
-          BASE_URL="https://${BUNNY_SPA_STORAGE_HOSTNAME}/${BUNNY_SPA_STORAGE_USERNAME}"
-          echo "BASE_URL: https://${BUNNY_SPA_STORAGE_HOSTNAME}/***"
-
-          find dist -type f | while read -r file; do
-            path="${file#dist/}"
-            mime=$(file --brief --mime-type "$file")
-            echo "Uploading $path ($mime)"
-            RESPONSE=$(curl -s --retry 3 -w "\n%{http_code}" \
-              -X PUT "${BASE_URL}/${path}" \
-              -H "AccessKey: ${BUNNY_SPA_STORAGE_PASSWORD}" \
-              -H "Content-Type: application/octet-stream" \
-              --data-binary "@${file}")
-            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-            BODY=$(echo "$RESPONSE" | head -n -1)
-            echo "  -> HTTP $HTTP_CODE"
-            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
-              echo "  -> Response: $BODY"
-              echo "  -> URL: https://${BUNNY_SPA_STORAGE_HOSTNAME}/***/${path}"
-              exit 1
-            fi
-          done
-
-          echo "SPA deployed successfully"
+        uses: ayeressian/bunnycdn-storage-deploy@v2.4.3
+        with:
+          source: "spa/dist"
+          storageZoneName: "${{ secrets.BUNNY_SPA_STORAGE_USERNAME }}"
+          storagePassword: "${{ secrets.BUNNY_SPA_STORAGE_PASSWORD }}"
+          accessKey: "${{ secrets.BUNNY_API_KEY }}"
+          storageEndpoint: "${{ secrets.BUNNY_SPA_STORAGE_HOSTNAME }}"
+          upload: "true"
+          remove: "true"
