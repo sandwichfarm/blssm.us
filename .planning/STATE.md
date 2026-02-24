@@ -10,12 +10,12 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Milestone: v1.1 Payments & Cache
-Phase: 7 of 7 (Handler Wiring) — IN PROGRESS
-Plan: 1 of 2 plans done
-Status: Phase 7 Plan 1 complete (paymentGate() middleware + startPriceFeedCron wiring)
-Last activity: 2026-02-25 — Phase 7 Plan 1 complete (payment-gate.ts, 7 tests, main.ts wiring)
+Phase: 7 of 7 (Handler Wiring) — COMPLETE
+Plan: 2 of 2 plans done
+Status: Phase 7 Plan 2 complete (all four write handlers wired with BUD-07 payment flow)
+Last activity: 2026-02-25 — Phase 7 Plan 2 complete (blob-upload, mirror, media, upload-check payment wiring)
 
-Progress: [██████████] 91% (10/11 total plans complete across all milestones)
+Progress: [██████████] 100% (11/11 total plans complete across all milestones)
 
 ## Performance Metrics
 
@@ -34,7 +34,7 @@ Progress: [██████████] 91% (10/11 total plans complete acros
 | 04-payment-config-types | 1 | 2 min | 2 min |
 | 05-access-control-cache-ttl | 2 | 4 min | 2 min |
 | 06-payment-middleware | 3 (of 3) | 17 min | 5.7 min |
-| 07-handler-wiring | 1 (of 2) | 2 min | 2 min |
+| 07-handler-wiring | 2 (of 2) | 4 min | 2 min |
 
 *Updated after each plan completion*
 
@@ -73,6 +73,10 @@ Recent decisions affecting v1.1:
 - Overpayment accepted as tip — wallet.receive() consumes all proofs, server discards returned new proofs
 - paymentGate() accepts optional deps parameter for test injection (Deno lacks module-level mocking)
 - paymentGate() fails open on null BTC price — startup race safety, mint still validates cryptographically
+- 411 returned for missing Content-Length on PUT handlers (not 0-fallback) — file size required for pricing
+- Mirror SC4 exception: JSON body parsed before access check to get URL for remote HEAD pricing
+- HEAD preflights use buildPaymentRequired() directly, never paymentGate() — proof consumption forbidden on HEAD
+- X-Content-Length (not Content-Length) used for HEAD preflight size — BUD-06 HEAD convention
 
 ### Pending Todos
 
@@ -86,5 +90,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 07-01-PLAN.md (paymentGate() middleware + startPriceFeedCron wiring)
+Stopped at: Completed 07-02-PLAN.md (all four write handlers wired with BUD-07 payment flow)
 Resume file: None
