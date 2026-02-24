@@ -12,7 +12,7 @@ This milestone adds pubkey-based publish access control to an existing BUD-compl
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Config Foundation** - Load and cache `config/access.json` from Bunny Storage with validation
+- [x] **Phase 1: Config Foundation** - Load and cache `config/access.json` from Bunny Storage with validation (completed 2026-02-24)
 - [ ] **Phase 2: Access Logic** - Implement `checkAccess()` decision function covering all mode/list combinations
 - [ ] **Phase 3: Endpoint Wiring** - Integrate access control into all gated write handlers and verify end-to-end
 
@@ -28,7 +28,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. When `access.json` is absent, server defaults to public mode with empty whitelist and blacklist (no 500, no lockout)
   4. Any pubkey entry that is not a 64-character lowercase hex string is logged as a warning and skipped — it does not silently pass or hard-fail
   5. Config includes `public` boolean, `whitelist` array, and `blacklist` array with correct types
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
 - [ ] 01-01-PLAN.md — AccessConfig type + loadAccessConfig() with TTL cache and validation
 
@@ -63,6 +63,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Config Foundation | 0/1 | Not started | - |
+| 1. Config Foundation | 1/1 | Complete   | 2026-02-24 |
 | 2. Access Logic | 0/TBD | Not started | - |
 | 3. Endpoint Wiring | 0/TBD | Not started | - |

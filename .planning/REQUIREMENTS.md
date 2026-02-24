@@ -9,13 +9,13 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Configuration
 
-- [ ] **CFG-01**: Server loads access control config from `config/access.json` in Bunny Storage
-- [ ] **CFG-02**: Config is cached with 60s TTL matching existing `blocked.json` pattern
-- [ ] **CFG-03**: Config includes `public` boolean (true = open to all, false = whitelist only)
-- [ ] **CFG-04**: Config includes `whitelist` array of hex pubkeys
-- [ ] **CFG-05**: Config includes `blacklist` array of hex pubkeys
-- [ ] **CFG-06**: Server rejects npub-formatted pubkeys in config with a logged warning and skips them
-- [ ] **CFG-07**: Missing `config/access.json` defaults to public mode with empty lists (backward compatible)
+- [x] **CFG-01**: Server loads access control config from `config/access.json` in Bunny Storage
+- [x] **CFG-02**: Config is cached with 60s TTL matching existing `blocked.json` pattern
+- [x] **CFG-03**: Config includes `public` boolean (true = open to all, false = whitelist only)
+- [x] **CFG-04**: Config includes `whitelist` array of hex pubkeys
+- [x] **CFG-05**: Config includes `blacklist` array of hex pubkeys
+- [x] **CFG-06**: Server rejects npub-formatted pubkeys in config with a logged warning and skips them
+- [x] **CFG-07**: Missing `config/access.json` defaults to public mode with empty lists (backward compatible)
 
 ### Access Logic
 
@@ -69,13 +69,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CFG-01 | Phase 1 | Pending |
-| CFG-02 | Phase 1 | Pending |
-| CFG-03 | Phase 1 | Pending |
-| CFG-04 | Phase 1 | Pending |
-| CFG-05 | Phase 1 | Pending |
-| CFG-06 | Phase 1 | Pending |
-| CFG-07 | Phase 1 | Pending |
+| CFG-01 | Phase 1 | Complete |
+| CFG-02 | Phase 1 | Complete |
+| CFG-03 | Phase 1 | Complete |
+| CFG-04 | Phase 1 | Complete |
+| CFG-05 | Phase 1 | Complete |
+| CFG-06 | Phase 1 | Complete |
+| CFG-07 | Phase 1 | Complete |
 | ACL-01 | Phase 2 | Pending |
 | ACL-02 | Phase 2 | Pending |
 | ACL-03 | Phase 2 | Pending |
