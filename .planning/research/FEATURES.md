@@ -1,21 +1,20 @@
 # Feature Research
 
-**Domain:** Blossom server access control (Nostr ecosystem blob storage)
+**Domain:** BUD-07 payment middleware + public+payments access mode + configurable cache TTL (blssm.us v1.1)
 **Researched:** 2026-02-24
-**Confidence:** MEDIUM — Blossom is a young protocol (2024); reference implementations exist but are sparse on access control documentation. Conclusions drawn from BUD specs, relay ecosystem analogues, and concrete server implementations (umbrel-blob-box, blossom-server, khatru, nostrcheck-server). Relay patterns (NIP-11, NIP-42) are MEDIUM-HIGH confidence via official NIPs.
+**Confidence:** HIGH — BUD-07 spec confirmed from canonical source; NUT-24 spec confirmed from cashubtc/nuts; existing codebase inspected directly; BOLT-11 spec verified.
 
 ---
 
-## Context: What This Milestone Is
+## Scope
 
-This milestone adds **publish access control** to an existing BUD-compliant Blossom server running on Bunny CDN EdgeScript (Deno). The server already handles auth (kind 24242), content blocking (blocked.json), and has a BUD-07 payment framework stub. The active work:
+This is a **subsequent milestone** for v1.1. The features below cover only the three new capabilities:
 
-- `config/access.json` stored in Bunny Storage
-- `public` boolean mode toggle
-- Whitelist by hex pubkey (free pass or private-only access)
-- Blacklist by hex pubkey (permanent ban)
-- Three behavioral modes: public-no-payment, public-with-payment, private
-- Gates write endpoints (PUT /upload, /mirror, /media) — not /report or reads
+1. BUD-07 payment middleware with pluggable verification (402 + X-Cashu/X-Lightning headers, payment proof validation)
+2. Public+payments access mode (whitelist = free pass, blacklist = banned, unlisted = 402)
+3. Configurable cache TTL (including TTL=0 for always-fresh reads)
+
+Existing capabilities (BUD-01/02/04/05/09, Nostr auth, whitelist/blacklist ACL, 60s TTL cache) are already shipped and not re-researched here.
 
 ---
 
@@ -23,120 +22,113 @@ This milestone adds **publish access control** to an existing BUD-compliant Blos
 
 ### Table Stakes (Operators Expect These)
 
-Features operators assume exist. Missing these = the server feels unfinished or unusable for real deployments.
+Features a BUD-07-compliant paid Blossom server must provide. Missing these = non-conformant with the spec.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Pubkey whitelist (allowlist) | Every Blossom/relay operator reference (umbrel-blob-box, blossom-server, khatru, myriad) implements allowlist as primary gating. It's the default mental model for "who can upload here." | LOW | Config in Bunny Storage as JSON array of hex pubkeys. Pattern established by blocked.json. |
-| Pubkey blacklist (denylist) | Spam is a real problem across the Nostr ecosystem — the relay world has seen 500k spam messages/day. Operators need a ban list independent of the mode they run. | LOW | Same config file as whitelist. Already partially addressed by blocked.json (hash-based), but pubkey-level banning is distinct and expected. |
-| Public/private mode toggle | Personal Blossom servers (umbrel-blob-box, myriad) are private-only by default. Community servers are public. Operators need to pick a posture without code changes. | LOW | Single boolean in access.json. Already in scope per PROJECT.md. |
-| Compose cleanly with payment gate | The relay ecosystem (filter.nostr.wine, expensive-relay, nerostr) universally treats payment as an overlay on top of pubkey identity, not a replacement. Operators expect whitelist = payment bypass, not whitelist = separate system. | MEDIUM | The "has paid" check is downstream (BUD-07 stub). Access control must leave a clear seam for payment wiring without re-architecting. |
-| Write-only gating (reads stay public) | Core Blossom philosophy: blobs are content-addressed and public by hash. Relay philosophy matches — retrieval is generally unrestricted. Operators who want read gating are edge cases, not the norm. | LOW | Per PROJECT.md: gate PUT /upload, /mirror, /media. Keep GET /<hash> open. This is the right default. |
-| Auth-required before gate check | Kind 24242 Nostr auth is the identity layer. Access control decisions are meaningless without a verified pubkey. Every implementation (khatru, umbrel-blob-box, blossom-server) validates auth before applying rules. | LOW | Already implemented. Auth middleware runs before handlers. Pubkey available when access check runs. |
-| Clear HTTP error semantics | Operators and client developers expect 401 (no/bad auth), 403 (authenticated but denied), 402 (payment required). Mixing these up breaks client UX across Nostr apps. | LOW | BUD-07 specifies 402 + X-Lightning/X-Cashu headers. 403 for blacklisted/non-whitelisted. Must be consistent. |
-| /report endpoint excluded from gating | BUD-09 content reporting is specifically designed to be open — it's a governance tool for operators, not a user privilege. Restricting it defeats its purpose. | LOW | Already out of scope per PROJECT.md. Confirm in implementation. |
+| 402 response with X-Cashu header (NUT-18 encoded) | BUD-07 spec mandates this. X-Cashu is the Cashu payment method header. NUT-24 defines what the header must contain: a NUT-18 payment request with `{ a: amount, u: unit, m: [mintUrls] }`. | MEDIUM | Existing `paymentRequired()` stub sets `X-Payment-Amount` and `X-Payment-Unit` as custom non-spec headers. Must be replaced with NUT-18 encoded X-Cashu header. The encoding is a base64url serialized payment request object. |
+| 402 response with X-Lightning header (BOLT-11 invoice) | BUD-07 spec defines X-Lightning as a supported method. Header value is a BOLT-11 invoice string. | MEDIUM | Existing stub puts an LNURL in X-Lightning — wrong format. BUD-07 specifies an invoice, not a static LNURL. Server must issue a fresh invoice per request. Without an LN node or provider API, Lightning support is a stub only (correct header format, no actual verification). |
+| Cashu token validation on retry | BUD-07: client retries PUT with cashuB token in X-Cashu header as payment proof. Server must validate the token is unspent and from an accepted mint. | HIGH | Token double-spend prevention requires calling the mint's swap endpoint. Cannot be done offline or locally. The mint is the sole source of truth for token state (NUT-07 token state check). Requires: accepted mint URL config, outbound fetch to mint, handling of 400 (already spent) vs success. |
+| Lightning preimage validation on retry | BUD-07: client retries with 64-char hex preimage in X-Lightning header. Server must SHA-256 hash it and match against the issued invoice's payment_hash. | HIGH | Stateless edge constraint makes this hard: server must have stored the payment_hash when the invoice was issued. Bunny EdgeScript has no persistent connections and no shared state between edge invocations. Requires external LN node or provider API per verification. |
+| 400 + X-Reason on invalid payment proof | BUD-07 explicitly requires this when payment proof is invalid, expired, or from a non-accepted mint. | LOW | X-Reason header pattern already established in the codebase for ACL denials on HEAD responses. Reuse the same pattern. |
+| public+payments mode in access.json | The milestone requirement. Third mode beyond `public: true` and `public: false`. Decision: whitelisted = free pass (no 402), blacklisted = 403, unlisted = 402. | MEDIUM | `AccessConfig` in `types.ts` already has a comment "in public+payments mode, also skip payment" on the whitelist field. `AccessResult` already has `requiresPayment?: true` reserved. Adding `payments?: boolean` to `AccessConfig` and extending the decision matrix in `checkAccess()` is the full scope. |
+| Payment configuration in Bunny Storage | Payment settings (accepted mints, amount, unit) must be operator-configurable without code changes. Stateless edge runtime has no other option. | LOW | Follows the `config/access.json` pattern exactly. New file: `config/payment.json`. Same TTL cache mechanism. New `PaymentConfig` type in `types.ts`. |
+| Configurable cache TTL | The 60s hardcoded TTL in both `ACCESS_CACHE_TTL_MS` and `BLOCKED_CACHE_TTL_MS` is too slow for operators changing payment config mid-incident. TTL=0 means always-fresh. | LOW | TTL value should come from `config/payment.json` or a unified `config/server.json`. Conditional: if `ttl === 0`, skip cache check and always fetch. If `ttl > 0`, use existing cache pattern with the configured value. |
 
 ### Differentiators (Competitive Advantage)
 
-Features that set this server apart. Not required by the ecosystem, but valued by operators who choose this server.
+Features that set this server apart from other Blossom implementations.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Mode-aware whitelist semantics | Other servers (umbrel-blob-box, khatru) treat whitelist as binary allow/deny. This server's three-mode system (public-no-payment: blacklist only; public-with-payment: whitelist = free pass; private: whitelist = only list) is more expressive. Operators can run a community server with VIP bypass without running a separate private server. | MEDIUM | The three-mode logic is the core design. Complexity is in making the semantics clear, not in implementation (it's conditional logic). Needs clear documentation so operators understand the composing behavior. |
-| Config stored in CDN storage (not env vars) | Env vars cannot hold large pubkey lists and require redeployment to change. Bunny Storage config + TTL cache pattern (already used for blocked.json) means operators can update lists without touching deployment infrastructure. This is a real operational advantage on edge deployments. | LOW | Pattern already proven. 60s TTL cache is the right tradeoff between freshness and performance. |
-| EdgeScript/Deno deployment (no infrastructure) | Most Blossom servers require a VPS, database, and process management. Running on Bunny CDN EdgeScript gives operators global CDN performance with no server management. Competitive differentiator for operators who want a managed-infrastructure Blossom server. | N/A (existing) | Not new to this milestone, but the access control must preserve this advantage by staying stateless. |
-| Composable payment integration (BUD-07 seam) | Payment verification is unsolved in the Blossom ecosystem — BUD-07 exists but no widely-deployed implementations are publicly documented. This server's access control is designed to leave a clean seam where "has paid" becomes a pluggable check. Operators who want to wire Lightning or Cashu later don't face a rewrite. | MEDIUM | The composition pattern (whitelist overrides payment, blacklist overrides everything) must be explicit in code and documented. |
+| Cashu (privacy-preserving ecash) as primary payment method | Cashu tokens are bearer instruments — no user tracking, no payment correlation. Aligns with Nostr/Blossom's censorship-resistance ethos. NUT-24 is the current 2025 standard for HTTP 402 Cashu payments. | MEDIUM | No other Blossom server publicly documents Cashu payment integration. Being the first BUD-07 compliant implementation with working Cashu is a genuine differentiator. |
+| Whitelist as payment bypass (composing access + payment) | Operators can give free access to trusted pubkeys, block bad actors, and charge everyone else — all in one `access.json` config. The relay ecosystem shows this is the correct mental model: "pay → get added to approved list." | LOW | The composition point is inside `checkAccess()`. When `payments` mode is active and pubkey is unlisted, return `{ allowed: false, requiresPayment: true }`. Handlers check this flag before calling `paymentRequired()`. No architectural changes needed — the seam was designed for this. |
+| TTL=0 for instant config propagation | Operators managing a paid service need to change payment amounts, update accepted mints, or adjust access rules immediately. The 60s cache means an operator who just changed their Cashu mint URL has to wait a minute. TTL=0 gives instant control. | LOW | Simple conditional in the cache load function. No complex invalidation mechanism needed. The Bunny Storage fetch is fast (same CDN zone). |
+| Pluggable payment verification architecture | BUD-07 explicitly supports future payment methods via new X-{method} headers. Current stub pattern (`verifyLightningPayment`) is already pluggable. Adding `verifyCashuPayment` as a parallel export maintains the pattern. | LOW | Keep `verifyLightningPayment` and `verifyCashuPayment` as separate exported functions in `src/middleware/payments.ts`. Handlers check which proof header is present in the request and call the matching verifier. Easy to add new methods later. |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
-Features that seem good but create problems.
-
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Per-endpoint access control granularity | Operators might want "whitelist for video but open for images" or "paid for large files, free for small." Seems flexible. | Creates a combinatorial config space that's hard to reason about and error-prone to configure. The relay ecosystem (NIP-11) uses global flags precisely because per-endpoint granularity causes operator confusion and client incompatibility. For this server's scope, write endpoints are functionally equivalent from an access perspective. | Gate all write endpoints uniformly. Use file-size limits (maxUploadSize in Config) for size-based control. Per-endpoint gating is a v2+ concern if operators actually request it. |
-| Admin UI for managing lists | Operators want a web UI to add/remove pubkeys without editing JSON. Reasonable UX want. | Building a correct, secure admin UI is substantial scope — authentication for the admin interface itself, UI framework, state management. For this milestone it's pure scope creep. The 80% of operators willing to edit a JSON file are the early adopter persona for a self-hosted Blossom server. | Config file editing via Bunny Storage dashboard or API. Document the config schema clearly. UI is a future milestone if operator feedback confirms the pain. |
-| Dynamic config reload without cache expiry | "I want changes to take effect instantly without waiting 60 seconds." Sounds like a quality improvement. | Instant config reload on edge deployments with no shared state means either polling (more Bunny Storage API calls, cost implications) or a cache-busting mechanism that adds complexity. The 60s TTL is already proven for blocked.json. Operators can tolerate a 60s propagation delay. | Keep 60s TTL cache. Document the delay explicitly. If operators report specific scenarios where 60s is painful, address then. |
-| Read-side access control | "Private bucket" semantics where only whitelisted pubkeys can fetch blobs. Requested by operators wanting true private storage. | Conflicts with the core Blossom value proposition — content-addressed blobs are meant to be publicly verifiable by hash. Read gating on a CDN also breaks caching (every request needs auth, defeating CDN edge caching). The khatru and BUD specs treat read as optional auth only for listing, not for fetching. | Keep reads public. For truly private blob storage, operators should use a different product (S3 with signed URLs, etc.). This server is for public blob serving with controlled write access. |
-| Payment verification in this milestone | Operators want complete payment integration now. BUD-07 exists. | Lightning preimage verification requires a Lightning node connection or payment provider API — an external dependency that varies by operator setup. Implementing it here ties access control to a specific payment provider and makes the scope enormous. The relay ecosystem shows that "no one has successfully monetized a Nostr relay" — it's still experimental territory. | Keep the BUD-07 stub and the access control seam. The whitelist serves as "manual payment bypass" for now — operators can add paid pubkeys manually. Payment wiring is a separate milestone with its own research needed. |
-| Proof-of-work gating (NIP-13 analogue) | Some relay operators use PoW to rate-limit without payment. Seems like a spam-prevention option. | Adds a verification step that no Blossom client currently generates. Client ecosystem support is essentially zero for Blossom PoW. Relay PoW works because relay clients (like Damus, Amethyst) implement it. Blossom clients don't. | Use payment or whitelist for controlled access. PoW is not viable until client ecosystem adopts it. |
-| Invite code system | nostrcheck-server implements this. Gives operators a registration flow rather than manual pubkey management. | Invite codes require a redemption endpoint, state to track codes (used/unused), and a distribution mechanism — significant scope. For a stateless edge deployment, invite state would need to live in Bunny Storage and handle race conditions. | Whitelist management via config file editing is sufficient for the target operator (self-hosted, technical). Invite codes are a v2+ social feature. |
+| Full Lightning node integration on-server | Lightning is widely supported by wallets; operators want Lightning payments. | Bunny EdgeScript (Deno) cannot run a Lightning node, maintain persistent channel state, or hold a wallet. Each edge invocation is stateless. Issuing invoices requires either a connected LN node (impossible on edge) or an external provider API (adds hard dependency on a third-party service). | Cashu is the correct fit for this stateless runtime. If Lightning is needed, integrate a payment provider API (LNbits, OpenNode, Strike) as a separate future milestone — it requires its own research. |
+| Local double-spend prevention for Cashu (no mint call) | "Verify tokens without calling the mint to reduce latency." | Cashu tokens cannot be verified for double-spend without calling the mint. The token is cryptographically valid but the mint tracks spending state (NUT-07). Any local-only verification is insecure — a single token could be presented to concurrent requests and both would pass local checks. Bunny Storage has no atomic operations to support local tracking. | Always call the mint's swap/redemption endpoint. The latency is acceptable for an upload operation. The mint is the single source of truth. |
+| Per-blob payment amounts | "Charge different amounts for large vs small files." | Requires storing payment intent per-blob, correlating payment proof to a specific blob hash across stateless edge invocations. Massive complexity increase. BUD-07 has no spec for this. No Blossom client supports it. | Flat per-upload fee is what BUD-07 assumes. Operators who want size-based pricing can use `maxUploadSize` in Config to cap blob size and charge a flat rate. |
+| Storing redeemed Cashu tokens locally (anti-replay log) | "Track spent tokens in Bunny Storage to avoid calling the mint." | Bunny Storage has no atomic operations. Two concurrent requests presenting the same token would both read "not in spent list" before either writes to it — a classic race condition. This is the exact failure mode the mint's atomic swap operation prevents. | Delegate double-spend prevention entirely to the mint. It is designed for this. |
+| Read-side payment gating (pay to download) | Monetize blob downloads, not just uploads. | Breaks Bunny CDN caching entirely — CDN serves cached responses before EdgeScript runs. Violates Blossom's public-read philosophy. PROJECT.md marks this explicitly out of scope. | Free reads, paid writes only. This is the correct architecture for a CDN-fronted Blossom server. |
+| Subscription / recurring payment state | "One-time payment grants ongoing upload access." | Requires tracking payment state per-pubkey across stateless edge invocations. Bunny Storage has no atomic ops, no TTL on values, and no event-driven updates. Maintaining subscription state on edge is architecturally wrong. | Whitelist-based free access is the equivalent: operator adds paid pubkeys to whitelist after managing subscriptions off-server (in their own system). The Blossom server doesn't need to know how pubkeys got on the whitelist. |
 
 ---
 
 ## Feature Dependencies
 
 ```
-[Nostr Kind 24242 Auth]
-    └──required-by──> [Pubkey Whitelist Check]
-    └──required-by──> [Pubkey Blacklist Check]
-    └──required-by──> [Payment Gate (future)]
+[public+payments mode]
+    └──requires──> [AccessConfig.payments field]
+                       └──requires──> [config/access.json schema update]
+    └──requires──> [checkAccess() decision matrix extension]
+                       └──depends-on (existing)──> [loadAccessConfig()]
+                       └──depends-on (existing)──> [AccessResult.requiresPayment (reserved)]
 
-[Pubkey Whitelist Check]
-    └──enhances──> [Payment Gate (future)]
-                       (whitelist = payment bypass in public+payment mode)
+[Cashu payment verification]
+    └──requires──> [PaymentConfig type]
+                       └──requires──> [config/payment.json]
+    └──requires──> [verifyCashuPayment(token, config)]
+                       └──requires──> [outbound fetch to mint swap endpoint]
+                       └──requires──> [cashuB token parsing]
 
-[access.json in Bunny Storage]
-    └──required-by──> [Pubkey Whitelist Check]
-    └──required-by──> [Pubkey Blacklist Check]
-    └──required-by──> [Public/Private Mode Toggle]
+[402 response (correct BUD-07 format)]
+    └──requires──> [PaymentConfig loaded (amount, unit, mints)]
+    └──requires──> [NUT-18 payment request encoding in X-Cashu header]
+    └──replaces──> [existing paymentRequired() stub]
 
-[blocked.json TTL Cache Pattern]
-    └──pattern-reused-by──> [access.json TTL Cache]
+[Payment middleware wired into write handlers]
+    └──requires──> [public+payments mode in checkAccess()]
+    └──requires──> [verifyCashuPayment() implemented]
+    └──depends-on (existing)──> [Nostr auth pubkey extraction]
+    └──depends-on (existing)──> [AccessResult.requiresPayment flag]
 
-[Public/Private Mode Toggle]
-    └──determines-semantics-of──> [Pubkey Whitelist Check]
-    └──determines-semantics-of──> [Pubkey Blacklist Check]
-
-[Access Control Gate]
-    └──applied-to──> [PUT /upload]
-    └──applied-to──> [PUT /mirror]
-    └──applied-to──> [POST /media]
-    └──NOT-applied-to──> [GET /<hash>]
-    └──NOT-applied-to──> [PUT /report]
-    └──NOT-applied-to──> [GET /list/<pubkey>]
+[Configurable cache TTL]
+    └──requires──> [TTL value in config/payment.json]
+    └──modifies──> [loadAccessConfig() — replace ACCESS_CACHE_TTL_MS constant]
+    └──modifies──> [isBlocked() — replace BLOCKED_CACHE_TTL_MS constant]
+    └──new-behavior──> [TTL=0: skip cache, always fetch from Bunny Storage]
 ```
 
 ### Dependency Notes
 
-- **Auth required before whitelist/blacklist:** The pubkey is only available after kind 24242 validation. Access control cannot run before auth. This is already handled by middleware ordering.
-- **access.json requires Bunny Storage client:** The existing storage client (`src/storage/client.ts`) handles this pattern. Access control uses the same client, same TTL cache pattern as blocked.json.
-- **Mode toggle determines whitelist semantics:** The same whitelist list has different meanings in public vs private mode. This is logic complexity, not data complexity — the config shape stays simple, the handler logic branches on mode.
-- **Payment gate enhances whitelist:** In public+payment mode, a whitelisted pubkey is treated as "has paid = true" without actual payment verification. This means the whitelist is load-bearing for payment bypass and must be checked before the payment gate.
+- **public+payments mode requires checkAccess() extension:** The `requiresPayment?: true` field on `AccessResult` is already reserved in v1.0 code with an explicit comment "MUST NOT be set in any v1 return path." v1.1 is when this flag gets activated. The composition point is clear: when `payments=true` and pubkey is unlisted, return `{ allowed: false, requiresPayment: true }` instead of a hard 403.
+- **Cashu verification requires external mint call:** The Bunny EdgeScript Deno runtime can make outbound HTTP requests via `fetch()`. This is the correct path. The mint URL comes from `config/payment.json`. No local anti-double-spend tracking is safe.
+- **Lightning verification has a hard constraint:** Server must have issued the invoice (and stored the payment_hash) to verify a preimage. Stateless edge cannot issue invoices. Lightning support requires either a provider API (external dependency) or remains a non-verifying stub. Cashu is the v1.1 priority.
+- **Configurable TTL is cross-cutting:** Both `ACCESS_CACHE_TTL_MS` (in `access.ts`) and `BLOCKED_CACHE_TTL_MS` (in `metadata.ts`) are hardcoded. A single `cacheTtlMs` value in `config/payment.json` (or a new `config/server.json`) should drive both.
 
 ---
 
 ## MVP Definition
 
-### Launch With (v1 — this milestone)
+### This Milestone (v1.1) — Launch With
 
-Minimum viable access control that delivers the stated core value: "operator can control exactly who is allowed to publish blobs."
+Minimum to ship functional payment-gated uploads with BUD-07 compliance.
 
-- [x] `config/access.json` loaded from Bunny Storage with 60s TTL cache — **foundation for all other features**
-- [x] `public` boolean field in access.json — **mode toggle**
-- [x] `whitelist` array of hex pubkeys in access.json — **allowlist primitive**
-- [x] `blacklist` array of hex pubkeys in access.json — **denylist primitive**
-- [x] Mode logic: public+no-payment → blacklist bans, whitelist ignored — **open server with bans**
-- [x] Mode logic: public+payment → whitelist = free pass, blacklist = banned, others need payment — **paid server with VIP bypass**
-- [x] Mode logic: private → whitelist = only allowed, blacklist ignored, payment ignored — **closed server**
-- [x] Gate applied to PUT /upload, /mirror, /media — **write endpoints protected**
-- [x] 403 response for denied pubkeys, 402 response deferred to payment middleware — **correct HTTP semantics**
+- [ ] `AccessConfig` extended with `payments?: boolean` field
+- [ ] `checkAccess()` updated: when `payments=true`, unlisted pubkeys return `{ allowed: false, requiresPayment: true }`
+- [ ] `PaymentConfig` type added to `types.ts` — `{ mints: string[], amount: number, unit: string, cacheTtlMs: number }`
+- [ ] `config/payment.json` schema defined and documented
+- [ ] `loadPaymentConfig()` with configurable TTL (same pattern as `loadAccessConfig()`)
+- [ ] `verifyCashuPayment(token: string, config: PaymentConfig): Promise<boolean>` implemented — calls mint swap endpoint
+- [ ] `paymentRequired(config: PaymentConfig): Response` rewritten — encodes NUT-18 payment request in X-Cashu header
+- [ ] Write handlers wired: when `requiresPayment: true`, check for X-Cashu/X-Lightning proof header; if present verify; if absent return 402
+- [ ] Configurable cache TTL — `ACCESS_CACHE_TTL_MS` and `BLOCKED_CACHE_TTL_MS` read from `PaymentConfig.cacheTtlMs`; TTL=0 always fetches fresh
 
 ### Add After Validation (v1.x)
 
-Add when operators report specific friction with v1.
-
-- [ ] Structured error responses with reason codes — trigger: operator/client debugging difficulty
-- [ ] Config validation on load (malformed JSON, invalid hex pubkeys) — trigger: first operator config mistake in production
-- [ ] Config schema documentation — trigger: any operator other than the primary operator uses this
+- [ ] Lightning support via external provider API — add when operators request it and have LN infrastructure; requires its own research
+- [ ] Per-mint amount config — allow different amounts per accepted mint if operator demand appears
 
 ### Future Consideration (v2+)
 
-Defer until product-market fit and operator feedback confirm need.
-
-- [ ] Payment verification wiring (BUD-07 Lightning/Cashu) — requires dedicated research milestone
-- [ ] Admin UI for list management — requires operator feedback confirming JSON editing is painful
-- [ ] Per-endpoint access control granularity — defer unless specific operator use case demands it
-- [ ] Read-side access control — fundamentally conflicts with Blossom philosophy; only if pivot to "private blob storage" product
+- [ ] BOLT-12 offers — more modern Lightning payment flow, better privacy than BOLT-11
+- [ ] Subscription/recurring payment tracking — requires external state management system
+- [ ] Read-side payments for access-controlled blobs — requires rethinking CDN architecture entirely
 
 ---
 
@@ -144,75 +136,88 @@ Defer until product-market fit and operator feedback confirm need.
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| access.json config loading + TTL cache | HIGH | LOW (follows blocked.json pattern exactly) | P1 |
-| Public/private mode toggle | HIGH | LOW (boolean field, conditional logic) | P1 |
-| Pubkey whitelist | HIGH | LOW (array lookup) | P1 |
-| Pubkey blacklist | HIGH | LOW (array lookup) | P1 |
-| Mode-aware whitelist semantics (three modes) | HIGH | MEDIUM (conditional logic with documented semantics) | P1 |
-| Correct HTTP error codes (403 vs 402) | MEDIUM | LOW | P1 |
-| /report exclusion from gating | MEDIUM | LOW (route-level skip) | P1 |
-| Config validation on load | MEDIUM | LOW | P2 |
-| Payment verification wiring | HIGH | HIGH (external dependency, unsolved ecosystem problem) | P3 |
-| Admin UI | MEDIUM | HIGH | P3 |
-| Read-side access control | LOW | HIGH (breaks CDN caching) | Anti-feature |
+| public+payments access mode | HIGH — core new capability enabling monetization | MEDIUM — extends existing checkAccess() at the reserved seam | P1 |
+| PaymentConfig type + config/payment.json | HIGH — prerequisite for everything else | LOW — new type, new JSON file on Bunny Storage | P1 |
+| Configurable cache TTL (including TTL=0) | MEDIUM — quality of life for paid server operators | LOW — replace constants with config value, add conditional | P1 |
+| Correct X-Cashu 402 header (NUT-18 encoded) | HIGH — BUD-07 compliance; clients parse this | MEDIUM — NUT-18 serialization, replace existing stub | P1 |
+| Cashu token verification (mint API call) | HIGH — without this, payment gate is unenforced | HIGH — external HTTP to mint, token parsing, error cases | P1 |
+| 400 + X-Reason on invalid payment proof | MEDIUM — BUD-07 compliance for error path | LOW — X-Reason pattern already in codebase | P1 |
+| Lightning preimage verification | MEDIUM — wallet ecosystem compat | HIGH — requires invoice issuance infrastructure not available on edge | P2 |
+| Correct X-Lightning 402 header (BOLT-11 invoice) | LOW — format correctness without verification is incomplete | LOW — correct header format, no provider yet | P2 |
 
 **Priority key:**
-- P1: Must have for this milestone
-- P2: Should have, add when possible
+- P1: Must have for v1.1 launch
+- P2: Should have, add when infrastructure supports it
 - P3: Nice to have, future milestone
 
 ---
 
-## Competitor Feature Analysis
+## Existing Code Audit
 
-| Feature | umbrel-blob-box | blossom-server (hzrd149) | nostrcheck-server | blssm.us (this project) |
-|---------|-----------------|--------------------------|-------------------|------------------------|
-| Pubkey whitelist | Yes (admin API + config JSON) | Yes (config.yml with requirePubkeyInRule) | Yes (DB-registered users) | Yes (access.json, static) |
-| Pubkey blacklist | Not documented | Not documented | Yes (ban module) | Yes (access.json, static) |
-| Public/private toggle | Yes (allowAnonymous bool) | Yes (requireAuth per endpoint) | Implicit (registration required) | Yes (public bool, explicit) |
-| Payment integration | No | No | Yes (Lightning, paid uploads) | Stub only (BUD-07 framework) |
-| Whitelist as payment bypass | No | No | No | Yes (differentiator) |
-| Config storage | JSON file on disk | YAML file on disk | Database (PostgreSQL/SQLite) | Bunny Storage JSON (stateless edge) |
-| Admin UI | Yes | Yes | Yes | No (config file editing) |
-| Content reporting (BUD-09) | No | No | No | Yes (existing) |
-| Edge deployment | No (VPS required) | No (VPS required) | No (VPS required) | Yes (Bunny CDN EdgeScript) |
+The following files require changes in v1.1:
 
-**Key finding:** No Blossom server in the ecosystem implements the payment-bypass-via-whitelist composing semantics. The three-mode logic (public-no-payment / public-with-payment / private) is novel. This is a genuine differentiator, not feature parity.
+| File | Current State | v1.1 Change Needed |
+|------|---------------|--------------------|
+| `src/middleware/payments.ts` | Stub — `paymentRequired()` sets non-spec headers (`X-Payment-Amount`, `X-Payment-Unit`); `verifyLightningPayment()` always returns false | Rewrite `paymentRequired()` for NUT-18 X-Cashu; add `verifyCashuPayment()`; fix `X-Lightning` header to use BOLT-11 invoice format |
+| `src/middleware/access.ts` | Complete for v1.0 — hardcoded `ACCESS_CACHE_TTL_MS = 60_000`; no `payments` mode branch in `checkAccess()` | Add `payments` mode to decision matrix; make TTL read from `PaymentConfig.cacheTtlMs` |
+| `src/types.ts` | `AccessConfig` has `public/whitelist/blacklist`; `PaymentInfo` is a minimal stub | Add `payments?: boolean` to `AccessConfig`; replace `PaymentInfo` with `PaymentConfig` type |
+| `src/storage/metadata.ts` | `BLOCKED_CACHE_TTL_MS = 60_000` hardcoded | Read TTL from `PaymentConfig.cacheTtlMs`; support TTL=0 bypass |
+| Write handlers (blob-upload, mirror, media) | Return 403 on denied access | Check `result.requiresPayment`; if true, call `paymentRequired()`; if request has X-Cashu/X-Lightning header, call verifier before deciding |
 
----
+### Key Implementation Note: Cashu Verification Flow
 
-## Ecosystem Patterns: What Relay Operators Want
+The `verifyCashuPayment(cashuBToken, paymentConfig)` function:
 
-Research into the Nostr relay ecosystem (which is more mature than Blossom and the closest analogue) reveals consistent operator priorities:
+1. Parse the `cashuB` token from the X-Cashu request header — extract mint URL and proofs
+2. Verify the mint URL is in `paymentConfig.mints` — reject tokens from untrusted mints
+3. Verify token amount meets `paymentConfig.amount` — reject underpayment
+4. POST to `{mintUrl}/v1/swap` with the proofs — atomically redeems the token at the mint
+5. If mint returns new proofs: payment valid (token was unspent and correct denomination)
+6. If mint returns error: token already spent, wrong unit, or invalid — return false
 
-**Spam control is the #1 operator concern.** The relay network has faced 500k spam messages/day. Blacklisting is not optional — it's what operators reach for first.
+The server receives new proofs from the swap. These can be discarded (simplest) or held as operator revenue (future feature). The mint handles double-spend prevention atomically — no local state needed.
 
-**Private relays are a distinct product from public relays.** Operators who run private relays (invite-only communities, personal nodes) need clear "whitelist only" semantics. Operators who run public relays need "blacklist bans" semantics. Mixing them causes confusion.
+### Key Implementation Note: Correct 402 Response Format
 
-**Payment is an overlay, not a replacement.** filter.nostr.wine, nerostr, expensive-relay all use payment to add pubkeys to a whitelist — they don't replace the whitelist concept with payment. The mental model is: "pay → get on the list → upload." This validates the composing design.
+Current `paymentRequired()` output (incorrect, non-spec):
+```
+HTTP/1.1 402 Payment Required
+X-Payment-Amount: 100
+X-Payment-Unit: sat
+```
 
-**Config complexity is an operator burden.** The relay ecosystem converged on NIP-11 global flags (auth_required, payment_required, restricted_writes) rather than per-subscription-filter access control. Simple global policies beat granular ones for operator DX.
+Required BUD-07 output:
+```
+HTTP/1.1 402 Payment Required
+X-Cashu: <NUT-18 encoded payment request>
+```
 
-**Auth-required before access is universal.** Every implementation (khatru RejectUpload hook, umbrel-blob-box admin API, nostrcheck-server NIP-98) validates identity before applying rules. There is no documented pattern for "access control without auth."
+The NUT-18 payment request in X-Cashu encodes: `{ a: amount, u: unit, m: [mintUrl1, mintUrl2] }` as a base64url-encoded JSON object (following the NUT-18 format from cashubtc/nuts).
+
+BUD-07 example from the canonical spec:
+```
+X-Cashu: "creqApWF0gaNhdGVub3N0cmFheKlucHJvZmlsZTFx..."
+```
+
+Lightning example (BOLT-11 invoice, not LNURL):
+```
+X-Lightning: "lnbc30n1pnnmw3lpp57727jjq8zxctahfavqacy..."
+```
 
 ---
 
 ## Sources
 
-- [BUD-02 spec — upload/delete/list auth](https://github.com/hzrd149/blossom/blob/master/buds/02.md) — MEDIUM confidence (official spec, verified)
-- [BUD-07 spec — payment 402 flow](https://github.com/hzrd149/blossom/blob/master/buds/07.md) — MEDIUM confidence (official spec, verified)
-- [BUD-09 spec — content reporting](https://github.com/hzrd149/blossom/blob/master/buds/09.md) — MEDIUM confidence (official spec, verified)
-- [NIP-11 relay information document](https://nips.nostr.com/11) — HIGH confidence (official NIP)
-- [NIP-42 client authentication](https://nips.nostr.com/42) — HIGH confidence (official NIP)
-- [khatru Blossom access control — RejectUpload hook](https://khatru.nostr.technology/core/blossom) — MEDIUM confidence (official framework docs)
-- [umbrel-blob-box — whitelist + allowAnonymous pattern](https://github.com/hzrd149/umbrel-blob-box) — MEDIUM confidence (reference implementation)
-- [filter.nostr.wine — paid relay + NIP-42 pattern](https://nostr-wine.github.io/filter-relay/) — MEDIUM confidence (live production implementation)
-- [hzrd149/awesome-blossom — server landscape](https://github.com/hzrd149/awesome-blossom) — LOW confidence (catalog only, no access control details)
-- [nostrcheck-server — ban module + registration](https://github.com/quentintaranpino/nostrcheck-server/blob/main/readme.md) — LOW confidence (README only, implementation details unverified)
-- [Nostr relay spam — 500k messages/day](https://github.com/Spl0itable/nostr-relay-spam-blocklist) — LOW confidence (community report, single source)
-- [The Bitcoin Manual — paid relay operator experience](https://thebitcoinmanual.com/articles/paid-nostr-relay/) — LOW confidence (content inaccessible during research, summary from search result)
+- [BUD-07 specification (canonical)](https://github.com/hzrd149/blossom/blob/master/buds/07.md) — HIGH confidence (official Blossom spec, directly fetched)
+- [Cashu NUT-24: HTTP 402 payment required](https://github.com/cashubtc/nuts/blob/main/24.md) — HIGH confidence (official Cashu spec, directly fetched)
+- [Cashu NUTs specifications index](https://cashubtc.github.io/nuts/) — HIGH confidence
+- [NUT-07: Token state check](https://cashubtc.github.io/nuts/07/) — HIGH confidence (double-spend prevention model)
+- [X-Cashu reference implementation](https://github.com/cashubtc/xcashu) — MEDIUM confidence (inspected)
+- [BOLT-11 specification](https://github.com/lightning/bolts/blob/master/11-payment-encoding.md) — HIGH confidence
+- [402fordummies.dev NUT-24 landing](https://402fordummies.dev/) — MEDIUM confidence
+- Existing codebase: `src/middleware/payments.ts`, `src/middleware/access.ts`, `src/types.ts`, `src/storage/metadata.ts` — HIGH confidence (inspected directly)
 
 ---
 
-*Feature research for: Blossom server access control (blssm.us)*
+*Feature research for: blssm.us v1.1 — BUD-07 payments, public+payments mode, configurable TTL*
 *Researched: 2026-02-24*

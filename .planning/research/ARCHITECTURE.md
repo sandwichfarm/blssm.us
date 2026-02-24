@@ -1,12 +1,12 @@
 # Architecture Research
 
-**Domain:** Blossom/Nostr blob server — access control middleware integration
+**Domain:** Blossom/Nostr blob server — BUD-07 payment middleware, public+payments mode, configurable cache TTL
 **Researched:** 2026-02-24
-**Confidence:** HIGH (based on direct codebase analysis + verified general middleware patterns)
+**Confidence:** HIGH (direct codebase analysis + verified BUD-07 spec)
 
 ## Standard Architecture
 
-### System Overview
+### System Overview (v1.1 — with payment layer wired)
 
 ```
 Incoming HTTP Request
@@ -23,13 +23,26 @@ Incoming HTTP Request
 │       │            │           │                 │            │
 │  [1] validateAuth ─┴───────────┴─────────────────┘            │
 │       |                                                        │
-│  [2] checkAccess (NEW — access control middleware)             │
+│  [2] checkAccess(storage, pubkey)                              │
+│       |── { allowed: true }           → continue              │
+│       |── { allowed: false, reason }  → 403                   │
+│       |── { requiresPayment: true }   → [3]                   │
 │       |                                                        │
-│  [3] verifyPayment (stub — payments.ts)                        │
+│  [3] verifyPaymentProof(request)     (NEW — replaces stub)    │
+│       |── proof valid                → continue               │
+│       |── no proof present           → paymentRequired() 402  │
+│       |── proof invalid              → 400 + X-Reason         │
 │       |                                                        │
-│  [4] isBlocked (content hash check)                            │
+│  [4] isBlocked(storage, hash)        (content hash check)     │
 │       |                                                        │
-│  [5] Business logic (store blob, update metadata, etc.)        │
+│  [5] Business logic                                            │
+├───────────────────────────────────────────────────────────────┤
+│                     Config & Cache Layer                       │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │  loadAccessConfig(storage, ttl)                          │ │
+│  │  Module-level cache — TTL from config/access.json field  │ │
+│  │  TTL=0 → always fresh (no cache)                         │ │
+│  └──────────────────────────────────────────────────────────┘ │
 ├───────────────────────────────────────────────────────────────┤
 │                     Storage & Metadata Layer                   │
 │  ┌────────────────────┐  ┌────────────────────────────────┐   │
@@ -41,65 +54,60 @@ Incoming HTTP Request
 
 ### Component Responsibilities
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| Router | Dispatch requests by method+path, apply CORS | `src/router.ts` — pattern match, delegate to handler |
-| Auth (validateAuth) | Extract pubkey from Nostr kind 24242 event, verify Schnorr sig | `src/auth/nostr.ts` — returns `AuthResult` with pubkey |
-| Access Control (NEW) | Check pubkey against whitelist/blacklist, enforce mode policy | `src/middleware/access.ts` — reads `config/access.json` |
-| Payment Gate (stub) | Return 402 with payment info if payment required | `src/middleware/payments.ts` — `verifyLightningPayment` stub |
-| Content Blocking | Check blob hash against known-bad content list | `isBlocked()` in `src/storage/metadata.ts` |
-| Handlers | Execute the BUD operation (upload, mirror, delete, list, media) | `src/handlers/` — each handler owns its full flow |
-| Storage Client | Abstract Bunny Storage REST API | `src/storage/client.ts` — path builders + HTTP wrappers |
-| Config Cache | In-memory TTL cache for config JSON files | Module-level variable + expiry check (same as `blockedCache`) |
+| Component | Status | Responsibility | Location |
+|-----------|--------|----------------|----------|
+| Router | Existing | Dispatch by method+path, apply CORS | `src/router.ts` |
+| Auth (validateAuth) | Existing | Extract pubkey from Nostr kind 24242, verify Schnorr sig | `src/auth/nostr.ts` |
+| Access Control (checkAccess) | Modified | Check pubkey against whitelist/blacklist, signal payment requirement | `src/middleware/access.ts` |
+| Payment 402 Builder (paymentRequired) | Existing | Return 402 with X-Lightning/X-Cashu headers | `src/middleware/payments.ts` |
+| Payment Verifier (verifyPaymentProof) | NEW | Validate Cashu token or Lightning preimage from request header | `src/middleware/payments.ts` |
+| Payment Config (loadPaymentConfig) | NEW | Load payment amount/lnurl from config/payment.json | `src/middleware/payments.ts` |
+| Config Cache (loadAccessConfig) | Modified | TTL-configurable module-level cache; TTL=0 bypasses cache | `src/middleware/access.ts` |
+| Content Blocking | Existing | Check blob hash against blocked list | `src/storage/metadata.ts` |
+| Handlers | Modified | Orchestrate auth → access → payment → business logic | `src/handlers/` |
 
-## Recommended Project Structure
+## Recommended Project Structure (v1.1 delta)
 
 ```
 src/
-├── auth/
-│   ├── nostr.ts          # validateAuth — kind 24242 + Schnorr verification
-│   └── schnorr.ts        # Signature math
 ├── middleware/
-│   ├── cors.ts           # CORS headers
-│   ├── payments.ts       # BUD-07 402 framework (stub)
-│   └── access.ts         # NEW: checkAccess — pubkey whitelist/blacklist
+│   ├── cors.ts           # Unchanged
+│   ├── payments.ts       # MODIFIED: add verifyPaymentProof(), loadPaymentConfig()
+│   └── access.ts         # MODIFIED: add requiresPayment path, TTL from config
 ├── handlers/
-│   ├── blob-upload.ts    # PUT /upload
-│   ├── blob-delete.ts    # DELETE /{sha256}
-│   ├── blob-get.ts       # GET /{sha256}
-│   ├── blob-list.ts      # GET /list/{pubkey}
-│   ├── mirror.ts         # PUT /mirror
-│   ├── media.ts          # PUT /media
-│   ├── report.ts         # PUT /report (exempt from access control)
-│   ├── upload-check.ts   # HEAD /upload, HEAD /media
-│   └── spa.ts            # SPA fallback
-├── storage/
-│   ├── client.ts         # Bunny Storage wrapper
-│   └── metadata.ts       # Blob metadata CRUD + config caching
-├── main.ts               # Entry point, env config, server startup
-├── router.ts             # HTTP routing
-├── types.ts              # Shared interfaces
-└── util.ts               # Helpers, response builders
+│   ├── blob-upload.ts    # MODIFIED: add payment gate between access check and body read
+│   ├── blob-delete.ts    # MODIFIED: add payment gate (if payment config covers delete)
+│   ├── blob-list.ts      # MODIFIED: add payment gate (if payment config covers list)
+│   ├── mirror.ts         # MODIFIED: add payment gate
+│   ├── media.ts          # MODIFIED: add payment gate
+│   ├── upload-check.ts   # MODIFIED: return 402 instead of 403 when payment required
+│   └── ...               # report.ts stays ungated
+├── types.ts              # MODIFIED: add PaymentConfig, extend AccessConfig with cacheTtl
+└── util.ts               # Unchanged
+config/
+├── access.json           # MODIFIED: add cacheTtl field (seconds, 0 = no cache)
+└── payment.json          # NEW: payment amount, unit, lnurl
 ```
 
-### Structure Rationale
+### What Is NOT New Files
 
-- **middleware/access.ts:** Access control belongs in middleware alongside payments and CORS, not in individual handlers. A single location prevents drift where one handler forgets the check.
-- **storage/metadata.ts:** Config cache logic lives here alongside the existing `blockedCache` pattern. Access config cache follows the same TTL model.
+- `payments.ts` already exists — it gets new exported functions, not a new file
+- `access.ts` already exists — TTL becomes configurable, not a new cache module
+- `payment.json` is a new Bunny Storage config file, not a source file
 
 ## Architectural Patterns
 
-### Pattern 1: Auth-First, Access-Second
+### Pattern 1: Auth → Access → Payment Proof → Business Logic
 
-**What:** Auth runs first to extract the pubkey. Access control runs second to check the pubkey against the allow/deny lists. Payment check (when wired) runs third. Business logic runs last.
+**What:** Four sequential gates before business logic. Each gate can short-circuit with the appropriate error response. Order is fixed by data dependencies.
 
-**When to use:** Always — access control is meaningless without knowing who is requesting. The access check is a predicate on the pubkey returned by auth.
+**When to use:** All gated write endpoints (upload, mirror, media, delete, list).
 
-**Trade-offs:** Every gated handler requires two async checks before doing real work. In the edge/stateless context this is acceptable because both are cached config reads (60s TTL).
+**Trade-offs:** Every request incurs two async config reads (access config + potentially payment config), both cached. The payment proof check is local (crypto operation on the request header), not a network call.
 
 **Example:**
 ```typescript
-// Inside each gated handler (upload, mirror, media, delete, list):
+// Inside each gated handler:
 const auth = await validateAuth(request, { verb: "upload", serverUrl: config.serverUrl });
 if (!auth.authorized || !auth.pubkey) {
   return errorResponse(auth.error || "Unauthorized", 401);
@@ -107,228 +115,420 @@ if (!auth.authorized || !auth.pubkey) {
 
 const access = await checkAccess(storage, auth.pubkey);
 if (!access.allowed) {
-  return errorResponse(access.reason || "Forbidden", 403);
-}
-
-// payment check goes here when wired
-// business logic follows
-```
-
-### Pattern 2: In-Handler Check (Not Extracted to Router)
-
-**What:** Access control is called within each handler rather than extracted to a router-level gate.
-
-**When to use:** This project already follows this pattern for auth and content blocking. Keeping access control in handlers maintains consistency and keeps each handler's full policy visible in one place.
-
-**Trade-offs:**
-- Pro: Each handler is self-contained and readable top-to-bottom.
-- Pro: `/report` endpoint can be easily excluded — it's out of scope per PROJECT.md.
-- Con: Must remember to add the check in every new gated handler.
-
-**Example:**
-```typescript
-// router.ts does NOT do access control — it only dispatches:
-if (path === "/upload" && method === "PUT") {
-  response = await handleBlobUpload(request, storage, config);
-}
-// Each handler internally calls validateAuth then checkAccess
-```
-
-### Pattern 3: Module-Level TTL Cache for Config
-
-**What:** A module-scoped variable holds the parsed config with an expiry timestamp. On each call, check if the cache is fresh. If stale, fetch from Bunny Storage and repopulate.
-
-**When to use:** Any config loaded from Bunny Storage that is read on every request. The existing `blockedCache` in `metadata.ts` is the canonical example.
-
-**Trade-offs:**
-- Pro: Avoids one Bunny Storage HTTP call per request.
-- Con: Config changes take up to TTL (60s) to propagate to a running instance.
-- Con: Each edge instance has its own cache — no cross-instance coordination.
-
-**Example:**
-```typescript
-// src/middleware/access.ts
-let accessCache: { config: AccessConfig; expires: number } | null = null;
-const ACCESS_CACHE_TTL_MS = 60_000;
-
-async function loadAccessConfig(storage: StorageClient): Promise<AccessConfig> {
-  const now = Date.now();
-  if (accessCache && now < accessCache.expires) {
-    return accessCache.config;
+  if (access.requiresPayment) {
+    const paymentConfig = await loadPaymentConfig(storage);
+    // Check if client already sent proof
+    const proofResult = await verifyPaymentProof(request);
+    if (!proofResult.valid) {
+      return proofResult.badProof
+        ? new Response(null, { status: 400, headers: { "X-Reason": proofResult.error } })
+        : paymentRequired(paymentConfig); // 402
+    }
+    // proof valid — continue to business logic
+  } else {
+    return errorResponse(access.reason, 403);
   }
-  const raw = await storage.getJson<AccessConfig>("config/access.json");
-  const config = raw ?? { public: true, whitelist: [], blacklist: [] };
-  accessCache = { config, expires: now + ACCESS_CACHE_TTL_MS };
-  return config;
+}
+
+// Read body, business logic...
+```
+
+### Pattern 2: requiresPayment Signal on AccessResult
+
+**What:** `checkAccess()` returns a discriminated union with a `requiresPayment` flag on the deny path. The handler reads this flag to decide between 403 and 402 responses. The access function itself does NOT call payment verification — it only signals intent.
+
+**When to use:** Public+payments mode — unlisted pubkeys get 402, not 403.
+
+**Trade-offs:**
+- Pro: Payment verification stays in payments.ts; access logic stays in access.ts. No cross-module calls.
+- Pro: The `requiresPayment` field already exists as a reserved field on `AccessResult` in v1.0. Activating it requires no type change.
+- Con: Each handler must handle the requiresPayment branch explicitly.
+
+**Example:**
+```typescript
+// access.ts — updated checkAccess for public+payments mode
+if (cache.config.publicPayments) {
+  if (cache.blacklist.has(pubkey)) {
+    return { allowed: false, reason: "pubkey is blacklisted" };
+  }
+  if (cache.whitelist.has(pubkey)) {
+    return { allowed: true }; // free pass
+  }
+  return { allowed: false, reason: "Payment required", requiresPayment: true }; // 402 path
+}
+```
+
+### Pattern 3: Configurable TTL via access.json cacheTtl Field
+
+**What:** The `cacheTtl` field in `config/access.json` overrides the hard-coded 60s TTL. TTL=0 means always-fresh (bypass cache entirely). The `loadAccessConfig` function reads this field on every cache miss to recalculate the next expiry.
+
+**When to use:** Operators who need rapid config changes (e.g., emergency blacklist update) set TTL=0. Operators who want performance keep the default (60s or omit the field).
+
+**Trade-offs:**
+- Pro: No code change required to adjust TTL — config file edit is sufficient.
+- Pro: TTL=0 is a clean escape hatch without deploying new code.
+- Con: TTL=0 means one Bunny Storage HTTP call per request on every gated endpoint. Acceptable for low-traffic servers; not recommended for high-traffic.
+- Con: The TTL is stored IN the config being cached. On the first read after a TTL change, the old TTL governs the last interval. This is unavoidable and acceptable.
+
+**Example:**
+```typescript
+// access.ts — TTL from config
+const ttlMs = typeof config.cacheTtl === "number"
+  ? config.cacheTtl * 1000
+  : ACCESS_CACHE_TTL_DEFAULT_MS;
+
+accessCache = {
+  config,
+  whitelist: new Set(config.whitelist),
+  blacklist: new Set(config.blacklist),
+  expires: ttlMs === 0 ? 0 : now + ttlMs, // 0 = always expired
+};
+
+// On next call:
+if (accessCache && accessCache.expires > 0 && now < accessCache.expires) {
+  return accessCache; // cache hit
+}
+// else: fetch fresh
+```
+
+### Pattern 4: Payment Config Loaded from Bunny Storage
+
+**What:** Payment amount, unit, and LNURL live in `config/payment.json`, not env vars. Loaded with its own TTL cache, same pattern as access config.
+
+**When to use:** Operator needs to change payment amount without a code deploy or env var update.
+
+**Trade-offs:**
+- Pro: Consistent with access.json pattern — same file-based config model.
+- Pro: Amounts can change without redeployment.
+- Con: One more config file to manage; minimal overhead since it uses the same cache pattern.
+
+**Example:**
+```json
+// config/payment.json
+{
+  "amount": 1000,
+  "unit": "sat",
+  "lnurl": "LNURL1..."
+}
+```
+
+```typescript
+// payments.ts — loadPaymentConfig
+let paymentCache: { info: PaymentInfo; expires: number } | null = null;
+
+export async function loadPaymentConfig(storage: StorageClient): Promise<PaymentInfo> {
+  const now = Date.now();
+  if (paymentCache && now < paymentCache.expires) return paymentCache.info;
+  const raw = await storage.getJson<PaymentInfo>("config/payment.json");
+  const info = raw ?? { amount: 0, unit: "sat" };
+  paymentCache = { info, expires: now + PAYMENT_CACHE_TTL_MS };
+  return info;
 }
 ```
 
 ## Data Flow
 
-### Request Flow for Gated Write Endpoints
+### Request Flow: Public+Payments Mode (the new path)
 
 ```
-PUT /upload (with Nostr auth header)
+PUT /upload (unlisted pubkey, no payment proof)
     |
     v
-Router.route()
-    |  (dispatches — no checks here)
-    v
-handleBlobUpload(request, storage, config)
+validateAuth() → pubkey extracted
     |
     v
-validateAuth()  ← reads Authorization header, verifies Schnorr sig
-    |  returns: { authorized: true, pubkey: "abc123..." }
-    |  or returns: { authorized: false, error: "..." } → 401
-    v
-checkAccess(storage, pubkey)  ← reads config/access.json (cached 60s)
-    |  mode=public, no payment: allow unless blacklisted
-    |  mode=public, payment:    allow if whitelisted OR paid (stub)
-    |  mode=private:            allow only if whitelisted
-    |  returns: { allowed: true }
-    |  or returns: { allowed: false, reason: "Not on whitelist" } → 403
-    v
-verifyLightningPayment()  ← stub, always false (future wiring)
-    |  (only reached in public+payment mode, skip if whitelisted)
-    v
-isBlocked(storage, hash)  ← reads config/blocked.json (cached 60s)
-    |  returns boolean
-    v
-Business logic: store blob, write metadata, update index
+checkAccess(storage, pubkey)
+  config: { public: true, publicPayments: true, whitelist: [...], blacklist: [...] }
+  pubkey not in whitelist, not in blacklist
+  → { allowed: false, requiresPayment: true }
     |
     v
-jsonResponse(BlobDescriptor) → 200
+Handler: requiresPayment === true
+    |
+    v
+verifyPaymentProof(request)
+  X-Cashu / X-Lightning header absent
+  → { valid: false, badProof: false }
+    |
+    v
+loadPaymentConfig(storage)
+  → { amount: 1000, unit: "sat", lnurl: "LNURL1..." }
+    |
+    v
+paymentRequired({ amount: 1000, unit: "sat", lnurl: "LNURL1..." })
+  → 402 response with X-Lightning header
+    |
+    v
+Client pays invoice, retries PUT with X-Lightning: <preimage>
+    |
+    v
+verifyPaymentProof(request)
+  Hashes preimage with SHA-256
+  Checks hash against known invoice hash
+  → { valid: true }
+    |
+    v
+Business logic (store blob, metadata, index)
+    |
+    v
+200 + BlobDescriptor
 ```
 
-### Access Config Schema (config/access.json)
+### Request Flow: Whitelisted Pubkey (payment bypassed)
 
 ```
+PUT /upload (whitelisted pubkey)
+    |
+checkAccess() → { allowed: true }  (whitelist fast-path)
+    |
+Business logic immediately
+    |
+200 + BlobDescriptor
+```
+
+### Access Config Schema (config/access.json — v1.1 additions)
+
+```json
 {
-  "public": true,          // true = public mode, false = private mode
-  "whitelist": ["pubkey1", "pubkey2"],  // always-allow pubkeys
-  "blacklist": ["pubkey3"]              // always-deny pubkeys
+  "public": true,
+  "publicPayments": false,
+  "whitelist": ["hex64pubkey..."],
+  "blacklist": ["hex64pubkey..."],
+  "cacheTtl": 60
 }
 ```
 
-### Access Policy Decision Matrix
+Field semantics:
+- `public`: existing field — true = public mode, false = private mode
+- `publicPayments`: NEW — true activates public+payments mode (unlisted users → 402)
+- `cacheTtl`: NEW — seconds to cache this config; 0 = no cache; omit = 60s default
+- `whitelist`: existing — always free pass in all modes
+- `blacklist`: existing — always denied in public and public+payments modes
+
+### Access Policy Decision Matrix (v1.1 complete)
 
 ```
-Mode     | Payment | Pubkey state    | Decision
----------|---------|-----------------|----------
-public   | off     | blacklisted     | DENY (403)
-public   | off     | whitelisted     | ALLOW
-public   | off     | neither         | ALLOW
-public   | on      | blacklisted     | DENY (403)
-public   | on      | whitelisted     | ALLOW (free pass)
-public   | on      | neither         | DENY (402) — requires payment
-private  | any     | whitelisted     | ALLOW
-private  | any     | not whitelisted | DENY (403)
+Mode              | Pubkey state    | Decision      | Status
+------------------|-----------------|---------------|-------
+public            | blacklisted     | DENY          | 403
+public            | whitelisted     | ALLOW         |
+public            | neither         | ALLOW         |
+public+payments   | blacklisted     | DENY          | 403
+public+payments   | whitelisted     | ALLOW (free)  |
+public+payments   | neither, paid   | ALLOW         |
+public+payments   | neither, no pay | PAYMENT REQ   | 402
+private           | whitelisted     | ALLOW         |
+private           | not whitelisted | DENY          | 403
 ```
 
-Note: Payments are currently a stub. The access check should call `checkPaymentStatus()` as a hook point that currently returns false, so public+payment mode will block everyone not on the whitelist until payments are wired.
+### Payment Proof Verification Flow
 
-### Key Data Flows
+```
+verifyPaymentProof(request):
+    |
+    ├─ X-Cashu header present?
+    │    → validateCashuToken(token)
+    │       MEDIUM confidence — requires NUT-24 token parsing
+    │       Cashu token is self-contained proof, no network call needed
+    │       Returns { valid: true } or { valid: false, badProof: true, error: "..." }
+    │
+    └─ X-Lightning header present?
+         → verifyLightningPreimage(preimage)
+            Hash preimage with SHA-256
+            Compare to stored invoice hash (from config/payment.json or in-flight store)
+            Returns { valid: true } or { valid: false, badProof: true, error: "..." }
 
-1. **Config loading:** Handler call → `loadAccessConfig()` → check module cache → if stale, `storage.getJson("config/access.json")` → parse, cache with expiry.
-2. **Access decision:** `checkAccess(storage, pubkey)` → load config → check blacklist first (short-circuit deny) → check whitelist → apply mode policy.
-3. **Blocked content:** Happens after access check, because the hash is only known after the upload body is read. Access is about WHO, blocking is about WHAT.
+    No payment header:
+         → { valid: false, badProof: false }  (prompt client with 402)
+```
 
-## Scaling Considerations
+### Configurable TTL Data Flow
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| Single operator (current) | 60s TTL cache per edge instance, config/access.json edited manually |
-| Small community (dozens of users) | Same — file editing is sufficient, TTL is acceptable lag |
-| Larger deployment (hundreds of users) | Same pattern, shorter TTL optional (10s). Still no DB required. |
-| Very large (thousands) | Lists in access.json become unwieldy. Would need paging or an external lookup. Out of scope. |
+```
+loadAccessConfig(storage):
+    |
+    ├─ accessCache exists AND expires > 0 AND now < expires?
+    │    → return cached config (cache hit)
+    │
+    └─ cache miss (stale, empty, or TTL=0):
+         → storage.getJson("config/access.json")
+         → normalizeAccessConfig(raw)
+         → read cacheTtl from normalized config
+         → set expires = cacheTtl === 0 ? 0 : now + (cacheTtl * 1000)
+         → store in module-level accessCache
+         → return config
+```
 
-### Scaling Priorities
+## New vs Modified Components
 
-1. **First bottleneck:** Large whitelist/blacklist arrays in access.json cause slow JSON parse per cache miss. Mitigation: Use a Set for O(1) lookup after parse. The current `blockedCache` already does this (`new Set(config.hashes)`).
-2. **Second bottleneck:** Cache miss on every cold-start edge instance. Not addressable in this architecture without a shared cache tier. Acceptable for this deployment scale.
+### New Components
 
-## Anti-Patterns
+| Component | Location | What It Does |
+|-----------|----------|--------------|
+| `verifyPaymentProof(request)` | `src/middleware/payments.ts` | Reads X-Cashu/X-Lightning from request headers, validates proof |
+| `loadPaymentConfig(storage)` | `src/middleware/payments.ts` | Loads + caches config/payment.json (amount, unit, lnurl) |
+| `config/payment.json` | Bunny Storage | Operator-editable payment amount and LNURL |
+| `PaymentConfig` type | `src/types.ts` | Shape of config/payment.json |
 
-### Anti-Pattern 1: Router-Level Access Gate
+### Modified Components
 
-**What people do:** Check access in the router before dispatching to handlers, to avoid per-handler repetition.
+| Component | Location | What Changes |
+|-----------|----------|--------------|
+| `AccessConfig` type | `src/types.ts` | Add `publicPayments?: boolean`, `cacheTtl?: number` |
+| `normalizeAccessConfig()` | `src/middleware/access.ts` | Parse new fields, apply defaults |
+| `loadAccessConfig()` | `src/middleware/access.ts` | Read cacheTtl from config, use it to set expires |
+| `checkAccess()` | `src/middleware/access.ts` | Add public+payments branch returning `requiresPayment: true` |
+| Gated handlers (5) | `src/handlers/` | Add payment gate: check requiresPayment, call verifyPaymentProof/paymentRequired |
+| `handleUploadCheck()` | `src/handlers/upload-check.ts` | Return 402 (not 403) when access returns requiresPayment |
 
-**Why it's wrong:** The router runs before auth. Pubkey is only available after auth succeeds. The router has no pubkey to check against. Attempting to run auth in the router would require the router to know each endpoint's verb, duplicating the handler's auth logic.
+### Untouched Components
 
-**Do this instead:** Keep auth and access in each handler. Follow the established pattern from `handleBlobUpload` and `handleBlobDelete` where `validateAuth` is the first call.
+- `src/router.ts` — no changes needed
+- `src/auth/nostr.ts`, `src/auth/schnorr.ts` — no changes
+- `src/storage/client.ts`, `src/storage/metadata.ts` — no changes
+- `src/middleware/cors.ts` — no changes
+- `paymentRequired()` in payments.ts — already correct, just needs to be called
 
-### Anti-Pattern 2: Fetching Config on Every Request
+## Build Order
 
-**What people do:** Call `storage.getJson("config/access.json")` directly without a cache, assuming it is cheap.
+Dependencies drive order. Each step can only begin when its inputs exist.
 
-**Why it's wrong:** Every gated request becomes at minimum two Bunny Storage HTTP round-trips (one for config, one for the actual operation). At edge latency this is tolerable once, but doubled latency on every write endpoint call degrades UX.
+```
+Step 1: Type definitions (src/types.ts)
+  - Add PublicPayments to AccessConfig (publicPayments, cacheTtl fields)
+  - Add PaymentConfig interface
+  - No file deps within project
+  ↓
 
-**Do this instead:** Use the module-level TTL cache pattern already established by `blockedCache`. One fetch per 60 seconds per edge instance.
+Step 2: loadPaymentConfig() in payments.ts
+  - New function, no deps on step 3+
+  - Can be written and tested independently
+  ↓
 
-### Anti-Pattern 3: Checking Access After Reading the Upload Body
+Step 3: verifyPaymentProof() in payments.ts
+  - Depends on: types from step 1
+  - Cashu: validate self-contained token (no network)
+  - Lightning: hash preimage with SHA-256 (Web Crypto API), compare to stored hash
+  ↓
 
-**What people do:** Read the full request body first (to compute the hash), then check access.
+Step 4: Access config TTL changes in access.ts
+  - Modify normalizeAccessConfig() to parse cacheTtl
+  - Modify loadAccessConfig() to apply TTL from config
+  - Modify checkAccess() to return requiresPayment: true in public+payments branch
+  - Depends on: updated AccessConfig type from step 1
+  ↓
 
-**Why it's wrong:** Wastes bandwidth and CPU hashing content for users who will be denied anyway. Blacklisted pubkeys can flood the server with large uploads that get processed before rejection.
+Step 5: Wire payment gate into each handler
+  - Handler reads access.requiresPayment
+  - Calls verifyPaymentProof() — if proof present and valid, continue
+  - Calls loadPaymentConfig() + paymentRequired() if no proof
+  - Depends on: steps 2, 3, 4
+  Priority order:
+    a. blob-upload.ts  (core write path, most important)
+    b. upload-check.ts (preflight must mirror upload policy)
+    c. mirror.ts
+    d. media.ts
+    e. blob-delete.ts
+    f. blob-list.ts
+  ↓
 
-**Do this instead:** Run auth then access check before reading `request.arrayBuffer()`. Only proceed to body reading once the pubkey is confirmed allowed. (The content block check on the hash must still happen after body read — those are separate concerns.)
-
-### Anti-Pattern 4: Coupling Access Control to Payment Logic
-
-**What people do:** Implement access control and payment verification as a single function, since they interact in public+payment mode.
-
-**Why it's wrong:** Payments are explicitly out of scope and the `verifyLightningPayment` stub always returns false. Coupling means the access control cannot be shipped until payments are wired.
-
-**Do this instead:** `checkAccess()` returns a result that indicates whether payment would be required (e.g., `{ allowed: false, requiresPayment: true }`). The handler then decides whether to call `verifyLightningPayment()` separately. This keeps the components decoupled and the access check fully functional with the stub in place.
+Step 6: Tests
+  - Unit tests for verifyPaymentProof() (valid cashu, valid lightning, missing, invalid)
+  - Unit tests for checkAccess() public+payments mode (extend existing test file)
+  - Integration: full 402 → pay → retry flow (can be manual or simulated)
+```
 
 ## Integration Points
-
-### External Services
-
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| Bunny Storage | REST API via `StorageClient` | config/access.json stored here alongside blocked.json |
-| Lightning Node (future) | `verifyLightningPayment()` stub in payments.ts | Not wired; checkAccess must compose cleanly with it |
 
 ### Internal Boundaries
 
 | Boundary | Communication | Notes |
 |----------|---------------|-------|
-| Handler → Access Middleware | Direct function call `checkAccess(storage, pubkey)` | Returns typed result, no side effects |
-| Access Middleware → Storage | `storage.getJson()` with module-level cache | Same TTL pattern as `isBlocked` |
-| Access Middleware → Payment Gate | Handler orchestrates both; they do not call each other | Prevents coupling |
-| Access Config ↔ Blocked Config | Independent files, independent caches | No shared state; can evolve separately |
+| Handler → checkAccess | Direct function call | Returns AccessResult discriminated union |
+| Handler → verifyPaymentProof | Direct function call, request passed | Reads X-Cashu/X-Lightning headers |
+| Handler → loadPaymentConfig | Direct function call | Only called when requiresPayment=true |
+| Handler → paymentRequired | Direct function call | Returns 402 Response |
+| checkAccess → loadAccessConfig | Internal call | cacheTtl sourced from config itself |
+| Access Middleware → Storage | storage.getJson("config/access.json") | TTL-cached |
+| Payment Middleware → Storage | storage.getJson("config/payment.json") | TTL-cached (60s fixed) |
 
-## Build Order
+### External Integration Points
 
-Components have direct dependencies. Build order matters for this milestone:
+| Service | How Used | Confidence |
+|---------|----------|------------|
+| Bunny Storage | config/payment.json read via StorageClient.getJson() | HIGH — identical to access.json pattern |
+| Lightning Network | verifyLightningPreimage: hash preimage with SHA-256, compare to expected hash. No outbound call to LN node required for BOLT-11 preimage verification. | HIGH — preimage verification is local crypto |
+| Cashu mint | Cashu token is self-contained proof (NUT-24). Verification is local if using offline proof format. If mint check is required, needs outbound fetch to mint. Scope decision needed. | MEDIUM — depends on implementation choice |
 
-```
-1. AccessConfig type definition (src/types.ts)
-   ↓ no deps within this project
-2. loadAccessConfig() cache utility (src/middleware/access.ts)
-   ↓ depends on: StorageClient, AccessConfig type
-3. checkAccess() decision function (src/middleware/access.ts)
-   ↓ depends on: loadAccessConfig
-4. Integrate checkAccess into each handler
-   ↓ depends on: checkAccess, existing validateAuth
-   Handlers in priority order:
-   a. blob-upload.ts  (PUT /upload — primary write path)
-   b. mirror.ts       (PUT /mirror)
-   c. media.ts        (PUT /media)
-   d. upload-check.ts (HEAD /upload, HEAD /media — pre-flight should mirror upload policy)
-   Note: report.ts is explicitly excluded per PROJECT.md scope
-5. config/access.json schema + default (config documented, default: public=true, lists empty)
-```
+### BUD-07 Spec Compliance Notes
+
+Based on spec analysis (HIGH confidence from direct spec read):
+
+- 402 response: already implemented in `paymentRequired()` — correct
+- `X-Lightning` header on 402: already implemented in `paymentRequired()` — correct
+- `X-Cashu` header on 402: `paymentRequired()` currently only sets X-Lightning — needs X-Cashu added if Cashu is supported
+- Client proof: X-Lightning = preimage string; X-Cashu = serialized cashuB token
+- Invalid proof: 400 + X-Reason header (not 401, not 403) — handlers must implement this branch
+- HEAD cannot carry proof: HEAD /upload returning 402 is valid signal; client must proceed to PUT
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Calling Payment Verification Inside checkAccess
+
+**What people do:** Have checkAccess call verifyPaymentProof so callers get a simple allowed/denied result.
+
+**Why it's wrong:** checkAccess needs the request object to read payment headers. The function signature is `(storage, pubkey)` — adding request would couple it to HTTP concerns and break the clean abstraction. It also prevents payment verification from being called only when needed.
+
+**Do this instead:** checkAccess returns `{ requiresPayment: true }` as a signal. The handler calls verifyPaymentProof separately. This preserves the existing clean function signature and keeps concerns separated.
+
+### Anti-Pattern 2: Hard-Coding Payment Amount in Code
+
+**What people do:** Put the sats amount in an env var or a constant in payments.ts.
+
+**Why it's wrong:** Operators need to change prices without redeployment. Env vars on Bunny EdgeScript require a redeployment of the script.
+
+**Do this instead:** Read amount from config/payment.json via loadPaymentConfig(), following the same pattern as access.json.
+
+### Anti-Pattern 3: Calling loadPaymentConfig on Every Request
+
+**What people do:** Call loadPaymentConfig at the top of every handler even when access returns allowed: true.
+
+**Why it's wrong:** Whitelisted pubkeys and public mode requests never need payment config. Loading it unconditionally wastes a Bunny Storage round-trip (even if cached, it's still a cache lookup + function call overhead per request).
+
+**Do this instead:** Call loadPaymentConfig only inside the `requiresPayment === true` branch, which is entered only when access denies due to payment requirement.
+
+### Anti-Pattern 4: Verifying Lightning Preimage Against Wrong Hash
+
+**What people do:** Store a single "current invoice hash" and compare all preimages against it.
+
+**Why it's wrong:** Lightning invoices are single-use. If multiple users are paying simultaneously, only the first preimage would match. All subsequent payers would be rejected with "invalid preimage" even after valid payment.
+
+**Do this instead:** For a stateless edge deployment, Cashu tokens are a much better fit than Lightning invoices. Cashu tokens are self-contained proofs that do not require knowing which specific invoice was paid. Lightning verification requires per-request invoice tracking which is not possible without external state.
+
+### Anti-Pattern 5: TTL=0 as Default
+
+**What people do:** Set TTL=0 by default thinking it is safest.
+
+**Why it's wrong:** TTL=0 means one Bunny Storage HTTP call per request on every gated endpoint. Under any load this becomes the dominant latency cost. Storage API calls add 50-200ms each.
+
+**Do this instead:** Default to 60s when cacheTtl is absent. Document TTL=0 as an emergency escape hatch.
+
+## Scaling Considerations
+
+| Scale | Architecture Adjustments |
+|-------|--------------------------|
+| Single operator | 60s TTL is fine. Payment config loaded per cache miss only. |
+| Small community | Same. Cashu tokens preferred over Lightning for stateless verification. |
+| High write traffic | Keep TTL at 60s. Lightning per-invoice tracking becomes impossible without external state. Cashu is the right choice. |
+| Large scale | Lists in access.json become unwieldy. Out of scope for this milestone. |
 
 ## Sources
 
-- Direct codebase analysis: `src/router.ts`, `src/auth/nostr.ts`, `src/middleware/payments.ts`, `src/storage/metadata.ts`, `src/handlers/blob-upload.ts`, `src/handlers/mirror.ts`, `src/types.ts` — HIGH confidence
-- [ASP.NET Core Middleware Order](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-8.0) — auth before authorization is universal middleware pipeline principle — MEDIUM confidence (different runtime, same principle)
-- [Middleware Order: UseAuthentication before UseAuthorization](https://dev.to/sachin_ghatage/aspnet-core-middleware-order-explained-why-appuseauthentication-must-come-before-26je) — confirms pipeline ordering principle — MEDIUM confidence
-- [Cloudflare Workers stateless edge pattern](https://developers.cloudflare.com/workers/runtime-apis/cache/) — module-level cache pattern for stateless edge workers — MEDIUM confidence (different runtime, same constraint)
-- `.planning/PROJECT.md` — access control requirements, constraints, and scope — HIGH confidence (authoritative project spec)
+- Direct codebase analysis: `src/middleware/payments.ts`, `src/middleware/access.ts`, `src/types.ts`, `src/handlers/blob-upload.ts`, `src/handlers/upload-check.ts` — HIGH confidence
+- BUD-07 specification (fetched from GitHub): 402 status, X-Lightning/X-Cashu headers, proof via preimage/token, 400+X-Reason for invalid proof — HIGH confidence
+- `.planning/PROJECT.md` — v1.1 requirements, constraints, out-of-scope decisions — HIGH confidence (authoritative)
+- `.planning/codebase/ARCHITECTURE.md` — existing layer documentation — HIGH confidence
 
 ---
-*Architecture research for: Blossom server access control middleware integration*
+*Architecture research for: BUD-07 payment middleware, public+payments mode, configurable cache TTL*
 *Researched: 2026-02-24*

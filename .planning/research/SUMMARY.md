@@ -1,176 +1,183 @@
 # Project Research Summary
 
-**Project:** blssm.us — Blossom server publish access control
-**Domain:** Nostr/Blossom blob server — pubkey-based write access gating
+**Project:** blssm.us v1.1 — BUD-07 Payment Middleware + Configurable Cache TTL
+**Domain:** Stateless Blossom blob server (Bunny EdgeScript / Deno) with payment-gated uploads
 **Researched:** 2026-02-24
-**Confidence:** MEDIUM-HIGH
+**Confidence:** HIGH (stack and architecture), MEDIUM (pitfalls — BUD-07 ecosystem is sparse)
 
 ## Executive Summary
 
-This milestone adds pubkey-based publish access control to an existing, production BUD-compliant Blossom server running on Bunny CDN EdgeScript (Deno/TypeScript). The server already handles Nostr kind 24242 authentication, content blocking via `blocked.json`, and has a BUD-07 payment framework stub in place. The access control work is purely additive — no new libraries, no runtime changes, and no architectural shifts. The approach follows established patterns already in the codebase.
+blssm.us v1.1 adds a BUD-07-compliant payment layer to an existing, fully-shipped v1.0 Blossom server. The server runs on Bunny EdgeScript (a Deno-compatible edge runtime) and uses Bunny Storage as its only persistent store. The recommended approach is a surgical additive milestone: no new npm dependencies, no new architectural layers, no changes to the router or auth systems. The three features — public+payments access mode, Cashu payment verification, and configurable cache TTL — all fit cleanly into the existing middleware and config-cache patterns already established in v1.0.
 
-The recommended implementation stores a `config/access.json` file in Bunny Storage (matching the `blocked.json` precedent), loaded via a 60-second TTL in-memory cache, and gates write endpoints (PUT /upload, PUT /mirror, PUT /media, HEAD /upload, HEAD /media) using a `checkAccess(storage, pubkey)` function called immediately after `validateAuth()` succeeds. The three-mode logic — public-no-payment (blacklist bans, whitelist ignored), public-with-payment (whitelist = payment bypass, blacklist = unconditional ban), private (whitelist only) — is novel relative to other Blossom implementations and is this server's primary differentiator. No BUD spec defines access control config format; the schema is project-defined.
+The central decision of this milestone is treating Cashu (NUT-24 / BUD-07) as the primary payment method, with Lightning deferred. This is the correct choice for a stateless edge runtime: Cashu tokens are self-contained bearer instruments whose double-spend protection can be delegated entirely to the issuing mint via the NUT-07 checkstate API. Lightning payment verification, by contrast, requires the server to have issued the BOLT-11 invoice and stored its payment hash — impossible on a stateless edge worker without an external LN node or provider API.
 
-The key risks are operational and logic correctness: operators will copy npub-format pubkeys from Nostr UIs into config (when only lowercase hex is valid), the blacklist-must-beat-whitelist precedence in payment mode is non-obvious and easy to invert, and BUD-06 preflight endpoints (`HEAD /upload`, `HEAD /media`) must mirror the same access gate as their write counterparts or clients will waste bandwidth on guaranteed rejections. All risks have clear prevention strategies and are addressed by test coverage requirements identified in PITFALLS.md.
+The dominant risk in this milestone is security, not implementation complexity. Four pitfalls are operationally catastrophic if shipped wrong: Cashu token replay (no mint checkstate call), accepting Cashu tokens from any mint (self-minted tokens), 402 responses being cached by Bunny CDN (paying clients permanently blocked), and the checkAccess semantic change failing to wire the 402 path correctly. Each has a clear prevention strategy and all must be verified with explicit tests before the milestone is considered complete.
 
 ## Key Findings
 
 ### Recommended Stack
 
-No new dependencies are required. The existing TypeScript 5.9.3 / Deno 2.x / @noble/curves 1.8.1 / @noble/hashes 1.6.1 stack is sufficient. The Bunny Storage client (`src/storage/client.ts`) already provides the JSON config loading pattern. The only new pattern is the module-level TTL cache for `access.json`, which directly mirrors the existing `blockedCache` in `src/storage/metadata.ts`.
+No new npm packages are required for this milestone. The existing stack — `@noble/curves@1.8.1`, `@noble/hashes@1.6.1`, and Deno's built-in `fetch` and `atob` APIs — covers all three features. Cashu NUT-07 Y-value computation uses `secp256k1.hashToCurve` from `@noble/curves`. Lightning preimage verification uses `sha256` from `@noble/hashes`. Payment config is loaded from Bunny Storage via the existing `StorageClient.getJson()` pattern.
 
-After reviewing all BUD specifications (BUD-00 through BUD-10), the research confirmed that no BUD defines a standard for server-side access control configuration. The JSON config format (`config/access.json`) is project-defined and consistent with the dominant ecosystem pattern used by umbrel-blob-box (hzrd149's own reference implementation).
+One low-confidence detail: the Cashu `hash_to_curve` algorithm (NUT-09) may be domain-separated and not match secp256k1's standard `hashToCurve`. This must be verified against the NUT-09 spec during implementation before writing Y-value computation.
 
 **Core technologies:**
-- TypeScript 5.9.3 / Deno 2.x: existing runtime — no change
-- @noble/curves secp256k1 1.8.1: Schnorr verification already extracts `pubkey` from kind 24242 events
-- `Set<string>` (builtin): O(1) pubkey membership test — use instead of `Array.includes()`
-- `config/access.json` in Bunny Storage: single-file config, one fetch per 60s TTL window
-- Module-level TTL cache: mirror the `blockedCache` pattern exactly
+- `@noble/curves@1.8.1` (existing): `hash_to_curve(proof.secret)` for NUT-07 Y values — already in `deno.json`, no install needed
+- `@noble/hashes@1.6.1` (existing): SHA-256 for Lightning preimage verification — already in `deno.json`
+- Deno `fetch` (built-in): outbound call to mint's `/v1/checkstate` — identical usage to existing Bunny Storage calls
+- `atob` + `JSON.parse` (built-in Web APIs): decode cashuB base64url token — no library needed
 
 ### Expected Features
 
-Research into the Blossom ecosystem (umbrel-blob-box, blossom-server, khatru, nostrcheck-server) and the more mature Nostr relay ecosystem (NIP-11, NIP-42, filter.nostr.wine, nerostr) reveals consistent operator priorities. Blacklisting is the first line of defense against spam. Public/private mode is a binary operator decision (community server vs. personal server). Payment is universally treated as an overlay on top of pubkey identity, not a replacement.
+**Must have (table stakes — BUD-07 compliance):**
+- 402 response with correct X-Cashu header encoding a NUT-18 payment request (amount, unit, accepted mints) — current stub is non-spec
+- Cashu token validation on retry: call mint `/v1/checkstate` to confirm proofs UNSPENT, then melt/swap to prevent replay
+- 400 + X-Reason header on invalid payment proof (token spent, wrong mint, wrong amount)
+- `public+payments` mode in `access.json` via explicit opt-in flag (`"payments": true`) — unlisted pubkeys get 402, whitelisted get free pass, blacklisted get 403
+- `config/payment.json` in Bunny Storage with operator-configurable amount, unit, and accepted mint list
+- Configurable cache TTL (`cacheTtl` field in `config/access.json`) including TTL=0 for always-fresh reads
 
-**Must have (table stakes):**
-- Pubkey whitelist (allowlist) in `access.json` — every reference implementation expects this
-- Pubkey blacklist (denylist) in `access.json` — spam is a production reality in the Nostr ecosystem
-- Public/private mode toggle (`public` boolean) — determines the semantics of both lists
-- Write-only gating (GET reads stay public) — core Blossom philosophy; CDN caching depends on it
-- Auth-required before gate check — pubkey only exists after kind 24242 validation
-- Correct HTTP semantics: 401 (no/bad auth), 403 (denied by policy), 402 (payment required)
-- /report endpoint excluded from gating — BUD-09 is a governance tool, not a user privilege
+**Should have (differentiators):**
+- Cashu as the primary payment method — privacy-preserving ecash, no user tracking, aligns with Nostr/Blossom censorship-resistance ethos; first BUD-07 compliant server with working Cashu
+- Whitelist as payment bypass — composing access and payment in one config (whitelisted = free, unlisted = 402, blacklisted = 403)
+- TTL=0 for instant config propagation — emergency escape hatch for operators changing mints or banning pubkeys
+- Pluggable payment verification architecture — `verifyCashuPayment` and `verifyLightningPayment` as separate exports, easy to extend
 
-**Should have (competitive/differentiator):**
-- Mode-aware whitelist semantics (three-mode logic) — no other Blossom server does payment-bypass-via-whitelist composition; this is a genuine differentiator
-- Config in CDN storage with TTL cache — operators can update access lists without redeployment; real operational advantage for edge deployments
-- Clean BUD-07 seam — payment wiring remains possible without re-architecting access control
-
-**Defer (v2+):**
-- Payment verification wiring (Lightning/Cashu) — requires external dependency research, separate milestone
-- Admin UI for list management — JSON file editing is sufficient for the target operator persona
-- Per-endpoint access control granularity — unnecessary combinatorial complexity
-- Read-side access control — fundamentally conflicts with Blossom's content-addressed blob philosophy
+**Defer (v1.x or v2+):**
+- Lightning support via external provider API (NWC, LNbits) — requires operator infrastructure decision; stateless edge cannot issue invoices
+- Per-mint amount configuration
+- BOLT-12 offers
+- Subscription / recurring payment state (requires external state management)
+- Read-side payment gating (breaks CDN caching, out of scope per PROJECT.md)
 
 ### Architecture Approach
 
-The access control component (`src/middleware/access.ts`) slots into the existing handler pipeline after `validateAuth()` and before body reads, payment checks, and content blocking. The architecture is entirely in-handler rather than router-level — the router has no pubkey to check against (auth hasn't run yet), and the existing codebase already follows this handler-owns-its-policy pattern. Each gated handler calls `validateAuth()` then `checkAccess(storage, pubkey)` in sequence, then proceeds to payment/content/business logic only on success.
+The v1.1 architecture is an additive extension to the existing four-gate request pipeline: router → handler → middleware (auth, access, payment) → storage. A new gate is inserted between the access check and business logic: `verifyPaymentProof(request)`. The key design decision is separation of concerns — `checkAccess()` returns a `requiresPayment: true` signal on the `AccessResult` type (already reserved in v1.0) but does not call the payment verifier. Handlers read this signal and invoke payment middleware separately, keeping `checkAccess(storage, pubkey)` free of HTTP concerns.
 
 **Major components:**
-1. `src/middleware/access.ts` (NEW) — `loadAccessConfig()` with 60s TTL cache + `checkAccess()` pure decision function
-2. `config/access.json` in Bunny Storage — `{ "public": true, "whitelist": [], "blacklist": [] }` schema
-3. `src/types.ts` (extend) — `AccessConfig` type definition
-4. Gated handlers (modify): `blob-upload.ts`, `mirror.ts`, `media.ts`, `upload-check.ts`
+1. `checkAccess()` (modified in `access.ts`) — adds `public+payments` branch returning `{ allowed: false, requiresPayment: true }` for unlisted pubkeys; blacklist check always runs first
+2. `verifyPaymentProof(request)` (new in `payments.ts`) — reads X-Cashu/X-Lightning headers, dispatches to appropriate verifier, returns discriminated union result
+3. `loadPaymentConfig(storage)` (new in `payments.ts`) — TTL-cached load of `config/payment.json`; called only when `requiresPayment === true`
+4. `paymentRequired(paymentConfig)` (rewritten in `payments.ts`) — emits spec-compliant 402 with NUT-18 encoded X-Cashu header; must set `Cache-Control: no-store`
+5. Gated handlers (5 files in `src/handlers/`) — add payment gate between access check and body read; HEAD handlers signal 402 but never consume proof
 
-**Build order within the milestone:**
-1. `AccessConfig` type in `src/types.ts`
-2. `loadAccessConfig()` + `checkAccess()` in `src/middleware/access.ts`
-3. Integrate into `blob-upload.ts` (primary write path)
-4. Integrate into `mirror.ts` and `media.ts`
-5. Integrate into `upload-check.ts` (HEAD preflight endpoints)
+**Build order:** types.ts → loadPaymentConfig → verifyPaymentProof → access.ts TTL + payment branch → wire handlers (blob-upload first, then upload-check, mirror, media, delete, list) → tests
 
 ### Critical Pitfalls
 
-1. **npub vs hex pubkey format mismatch** — Operators copy npub from Nostr UIs; `event.pubkey` is always lowercase 64-char hex. Silent failure: whitelisted users get 403, blacklisted users pass. Avoid by validating every config entry against `/^[0-9a-f]{64}$/` on load and logging a warning for invalid entries.
+1. **Cashu token replay across edge isolates** — Module-level in-memory sets are isolate-local; lost on restart; useless across Bunny EdgeScript nodes. Always call the mint's `/v1/checkstate` (NUT-07) before accepting, then melt/swap the proof. There is no safe alternative. Treat this as a hard requirement before writing any verification logic.
 
-2. **Logic inversion in mode/list precedence** — Checking whitelist before blacklist in payment mode allows a blacklisted+whitelisted pubkey through. The correct order is: blacklist check first (short-circuit deny in applicable modes), then whitelist, then mode policy. Write the decision matrix as a comment block before implementing, and test every cell.
+2. **402 response cached by Bunny CDN** — Bunny CDN can and will cache 4xx responses. A cached 402 means paying clients are permanently blocked until cache expiry. Set `Cache-Control: no-store` on `paymentRequired()` as the very first task in the payment middleware phase — one line, catastrophic if missed.
 
-3. **Access control check runs after body is consumed** — Reading `request.arrayBuffer()` before calling `checkAccess()` lets denied users consume server bandwidth and storage API calls. The check must run before body reads. Order: auth → access → body read → hash → content block.
+3. **Cashu token from attacker-controlled mint** — Without validating the token's mint URL against `config/payment.json`'s accepted mint list, an attacker self-mints tokens on a controlled mint and gets free access. The `PaymentConfig` type must include `cashuMints: string[]`. Reject any token whose mint is not in the list before any mint API call.
 
-4. **BUD-06 preflight endpoints not gated** — `HEAD /upload` and `HEAD /media` must enforce the same access control as their PUT counterparts. If preflight returns 200 for a blacklisted pubkey, BUD-06-aware clients will send the full body to a guaranteed rejection.
+4. **`checkAccess` semantic change fails to wire 402 path** — If payment middleware is added at the handler level without updating `checkAccess` to return `requiresPayment: true`, unlisted pubkeys in public+payments mode still receive 403, never 402. The access function must be updated first, before any handler wiring.
 
-5. **Config cache not propagating across isolate instances** — The 60-second TTL is per edge isolate instance, not global. After editing `access.json`, config propagation takes up to 60 seconds across all active instances. This is expected behavior but must be documented explicitly so operators don't report a "ban not working" bug.
+5. **Mode transition — existing `public: true` configs silently become payment-gated** — If public+payments mode is inferred from the presence of `payment.json` rather than an explicit opt-in flag, operators upgrading to v1.1 will find all non-whitelisted users receiving 402 without any config change. Require an explicit `"payments": true` field. Treat its absence as no payment gate, regardless of what other config files exist.
 
 ## Implications for Roadmap
 
-Based on research, the milestone fits cleanly into three implementation phases with a clear dependency order. All phases use existing stack; none require research-phase during planning.
+Based on research, the dependency graph drives a clear four-phase structure. Each phase is a prerequisite for the next.
 
-### Phase 1: Config Foundation
+### Phase 1: Config Schema + Types
 
-**Rationale:** Everything else depends on the config schema and cache loading. Defining the type, validating the format, and proving the TTL cache works is the enabling layer for all other work. The blocked.json pattern is the direct template — this is low-risk and fast.
+**Rationale:** All subsequent work depends on correct type definitions and config schema. The `AccessConfig.payments` opt-in flag must exist before any access logic is changed. The `PaymentConfig` type with `cashuMints: string[]` must exist before any payment verification code is written. Defining `DEFAULT_PAYMENT_CONFIG` here addresses the missing-config pitfall at the foundation.
 
-**Delivers:** `AccessConfig` type, `loadAccessConfig()` with TTL cache, `checkAccess()` pure decision function, schema validation with npub-format rejection, default behavior when `access.json` is absent (public mode, empty lists).
+**Delivers:** Updated `types.ts` with `PaymentConfig` (including `cashuMints: string[]`) and extended `AccessConfig` (adding `payments?: boolean`, `cacheTtl?: number`); `config/access.json` and `config/payment.json` schemas documented; `DEFAULT_PAYMENT_CONFIG` constant defined with safe fallback.
 
-**Addresses:** pubkey whitelist, pubkey blacklist, public/private mode toggle (all table stakes from FEATURES.md).
+**Addresses:** `PaymentConfig` type, `config/payment.json` schema, `AccessConfig.payments` opt-in field, `cacheTtl` field
 
-**Avoids:** npub vs hex pitfall (validation on load), per-request storage fetch pitfall (TTL cache), array linear scan pitfall (convert to `Set<string>` on cache population).
+**Avoids:** Mode transition pitfall (Pitfall 10), payment config missing pitfall (Pitfall 9)
 
-### Phase 2: Endpoint Wiring
+### Phase 2: Access Control + Cache TTL
 
-**Rationale:** With `checkAccess()` tested and ready, each handler adds two lines (call + error return). The gating logic should be consistent across all four targets. Mirror must be included explicitly because it has a secondary SSRF risk if unauthorized callers can trigger outbound fetches.
+**Rationale:** `checkAccess()` must emit the `requiresPayment: true` signal before any handler can use it. Configurable TTL is a self-contained change in `access.ts` with no downstream dependencies. Both changes live in the same file and ship together. The blacklist-first check order must be explicitly tested here before any payment wiring proceeds.
 
-**Delivers:** Access control active on PUT /upload, PUT /mirror, PUT /media, HEAD /upload, HEAD /media. All endpoints return correct HTTP status codes (403 for policy denial, distinct from 401 for auth failure).
+**Delivers:** `checkAccess()` extended with public+payments mode decision matrix; `loadAccessConfig()` reads `cacheTtl` from config; TTL=0 always-fresh behavior with last-known-good fallback on storage errors; full ACL matrix tests including blacklist-beats-whitelist in payment mode.
 
-**Implements:** Architecture Pattern 1 (auth-first, access-second, before body read) and Pattern 2 (in-handler check, not router-level).
+**Addresses:** public+payments mode, configurable cache TTL, `checkAccess` semantic correctness
 
-**Avoids:** Body-consumed-before-access-check pitfall, BUD-06 preflight not gated pitfall, mirror endpoint excluded pitfall, 401-vs-403 status code conflation pitfall.
+**Avoids:** Access layer semantic change pitfall (Pitfall 3), blacklist check order pitfall (Pitfall 6), TTL=0 storage exhaustion pitfall (Pitfall 5)
 
-### Phase 3: Verification and Docs
+### Phase 3: Payment Middleware
 
-**Rationale:** The three-mode logic (public-no-payment / public-with-payment / private) is novel and the logic inversion risk is HIGH severity. A systematic verification pass against the decision matrix catches logic errors before production. Operator documentation of the 60-second propagation delay and hex-only pubkey requirement prevents the highest-frequency support issues.
+**Rationale:** With correct types and a working access layer, payment verification can be implemented in isolation and tested independently before touching any handler. This is the highest-risk phase — it requires external mint API calls, token format parsing, and correct NUT-07 interaction. The NUT-09 `hash_to_curve` algorithm must be verified against the spec at the start of this phase before writing Y-value computation.
 
-**Delivers:** Matrix test coverage for all mode/whitelist/blacklist combinations including edge cases (blacklisted+whitelisted, missing config file, npub in config). "Looks Done But Isn't" checklist from PITFALLS.md verified. Operator documentation for config schema, TTL delay, and pubkey format requirement.
+**Delivers:** `loadPaymentConfig()` with TTL cache; `verifyCashuPayment()` with NUT-07 mint checkstate call and allowed-mint validation; rewritten `paymentRequired()` with NUT-18 X-Cashu header and `Cache-Control: no-store`; unit tests for all verification paths (valid token, spent token, wrong mint, missing proof).
 
-**Avoids:** Logic inversion pitfall (matrix tests catch this), config propagation misunderstanding (documentation), report endpoint accidentally gated.
+**Addresses:** Cashu token verification, correct 402 response format, 400 + X-Reason error path
+
+**Avoids:** Cashu token replay (Pitfall 1), CDN caching of 402 (Pitfall 4), unvalidated mint URL (Pitfall 8), incomplete Lightning verifier (Pitfall 2)
+
+### Phase 4: Handler Wiring + Integration
+
+**Rationale:** The final phase wires the payment gate into all five affected handlers once the middleware is fully tested. Handler order: blob-upload first (core write path), then upload-check (preflight must mirror upload policy), then mirror, media, delete, list. The HEAD/PUT distinction must be enforced explicitly — upload-check returns 402 to signal payment requirement but must never call `verifyPaymentProof`.
+
+**Delivers:** All five write handlers gated with payment check; HEAD endpoints signal 402 but do not consume proofs; integration tests covering the full 402 → pay → retry flow and the "looks done but isn't" checklist from PITFALLS.md.
+
+**Addresses:** All P1 features wired end-to-end
+
+**Avoids:** HEAD payment verification pitfall (Pitfall 7)
 
 ### Phase Ordering Rationale
 
-- Config foundation must come first because `checkAccess()` is the dependency for all handler changes. Building and testing the function in isolation reduces risk in Phase 2.
-- Endpoint wiring is Phase 2 not Phase 1 because each handler mod is mechanical once `checkAccess()` exists. Batching all handler changes into one phase keeps the diff reviewable.
-- Verification is last because it validates the complete system, not individual components. The decision matrix test only makes sense when all three modes are wired end-to-end.
-- Payment mode composition (public+payment) is explicitly out of scope for execution in this milestone but the config schema and `checkAccess()` return shape must accommodate it from Phase 1 — otherwise payment wiring in a future milestone requires a rewrite rather than a fill-in.
+- Types before logic: every downstream file imports from `types.ts`; incorrect types cascade into all modules
+- Access before payment: handlers check `access.requiresPayment` before calling payment middleware; if access is wrong, payment never fires
+- Middleware before handlers: testing payment verification in isolation gives faster feedback and cleaner unit tests
+- Handlers last: handler wiring is mechanical once all dependencies are correct; most files touched but lowest logic risk
 
 ### Research Flags
 
-Phases with standard, well-documented patterns (no research-phase needed):
-- **Phase 1:** Config loading pattern is a direct copy of `blockedCache` in `metadata.ts`. Type definition is straightforward. No novel patterns.
-- **Phase 2:** Handler modification is mechanical — add two lines per handler after `validateAuth()`. Established by existing code structure.
-- **Phase 3:** Test patterns follow existing codebase conventions. Documentation is operator-facing prose.
+Phases needing spec verification during planning or implementation:
 
-No phase in this milestone requires `/gsd:research-phase` during planning. All patterns are established by existing codebase or well-documented BUD specs.
+- **Phase 3 (Payment Middleware):** NUT-09 `hash_to_curve` exact algorithm — LOW confidence. Verify against `cashubtc/nuts/blob/main/09.md` before writing Y-value computation. The `@noble/curves` package is correct; the calling convention may differ from standard secp256k1 `hashToCurve`.
+- **Phase 3 (Payment Middleware):** Cashu proof consumption strategy — confirm whether `POST /v1/checkstate` (NUT-07, read-only) or `POST /v1/swap` (NUT-03, atomic consume) is the correct endpoint for a server receiving payment. PITFALLS.md says "melt or swap"; clarify during implementation.
+
+Phases with standard patterns (skip research-phase):
+
+- **Phase 1 (Config Schema + Types):** Pure TypeScript type definitions following existing patterns — no research needed.
+- **Phase 2 (Access Control + Cache TTL):** Direct extension of existing `checkAccess()` at a pre-defined seam; TTL is a constant replacement. Well-understood.
+- **Phase 4 (Handler Wiring):** Mechanical wiring following established handler patterns; no novel patterns required.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | No new dependencies. Patterns verified directly from existing codebase (`metadata.ts` blocked cache, `auth/nostr.ts` pubkey extraction). BUD specs verified from official GitHub repo. |
-| Features | MEDIUM | Blossom ecosystem is young (2024). Reference implementations are sparse. Feature table stakes derived from ecosystem analogues (Nostr relays, NIP-11/42) which are MEDIUM-HIGH confidence. The three-mode logic is novel — no reference implementation to validate against. |
-| Architecture | HIGH | Based on direct codebase analysis plus universal middleware ordering principles. The handler-level check pattern is already established in this codebase for auth and content blocking. |
-| Pitfalls | MEDIUM | Blossom-specific pitfall documentation is sparse. Critical pitfalls (npub format, 401/403, body order, preflight) are derived from BUD spec analysis + OWASP + Bunny CDN/Deno isolate documentation (HIGH confidence sources). Logic inversion risk is derived from reasoning about the novel three-mode semantics, not from observed failure in the wild. |
+| Stack | HIGH | No new packages. Existing `@noble/curves`, `@noble/hashes`, and `fetch` confirmed sufficient. Only LOW-confidence detail: exact NUT-09 hash_to_curve calling convention. |
+| Features | HIGH | BUD-07 and NUT-24 specs fetched directly. Existing codebase inspected. `requiresPayment` reserved field confirmed. Cashu/Lightning asymmetry well-understood. Feature priority matrix explicit in FEATURES.md. |
+| Architecture | HIGH | Direct codebase analysis. Build order confirmed from dependency graph. All modification points identified. Existing patterns (StorageClient, config cache, discriminated union result types) directly applicable to all new components. |
+| Pitfalls | MEDIUM | BUD-07 ecosystem is sparse; no reference BUD-07 implementation exists for comparison. Cashu replay and CDN caching pitfalls are well-sourced (Deno isolate docs, Bunny CDN security research). Lightning pitfalls are spec-derived. Mode transition pitfall is reasoning-based. |
 
-**Overall confidence:** MEDIUM-HIGH
+**Overall confidence:** HIGH for Cashu path. MEDIUM for Lightning path (deferred, stub must remain returning false).
 
 ### Gaps to Address
 
-- **Three-mode payment composition behavior in public+payment mode:** The payment check stub always returns false. This means public+payment mode currently blocks everyone not on the whitelist. This is the correct interim behavior but must be explicitly documented in code comments so the next developer who wires payments understands the intent. Gap: no reference implementation to validate the whitelist-as-payment-bypass UX.
-
-- **Bunny Storage atomic write behavior:** PITFALLS.md notes that config writes are atomic by design (single PUT). This has not been explicitly verified from Bunny Storage API documentation during this research cycle. Low risk — the concern is invalid JSON, not partial write — but worth confirming during implementation.
-
-- **Config validation strictness:** Research recommends logging a warning for invalid hex pubkeys on load rather than hard-failing (to avoid locking out the operator if they make a typo). The exact behavior on malformed config (warn + use remaining valid entries vs. warn + fall back to defaults) should be decided during implementation based on operator experience preferences.
+- **NUT-09 hash_to_curve exact algorithm:** Must verify `cashubtc/nuts/blob/main/09.md` during Phase 3 before writing Y-value computation. Risk: using the wrong calling convention produces incorrect Y values, causing all Cashu token validations to fail at the mint.
+- **Cashu proof consumption endpoint:** Clarify NUT-03 (swap) vs. NUT-07 checkstate-only vs. NUT-05 (melt) for server-receiver use case. Wrong choice either fails to prevent replay (checkstate-only without subsequent consumption) or introduces unnecessary complexity.
+- **Lightning path commitment:** The `verifyLightningPayment` stub must remain returning false unconditionally. Do not ship a partial implementation. Document this explicitly in code comments so future developers understand the stub is intentional, not an oversight.
+- **`cacheTtl` config file location:** ARCHITECTURE.md places it in `config/access.json`; FEATURES.md suggests `config/payment.json`. Resolve during Phase 1 schema definition — single location, documented.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- `github.com/hzrd149/blossom/blob/master/buds/02.md` — BUD-02 upload spec, reject-for-any-reason clause
-- `github.com/hzrd149/blossom/blob/master/buds/06.md` — BUD-06 preflight spec, 401/403 semantics, X-Reason header
-- `github.com/hzrd149/blossom/blob/master/buds/07.md` — BUD-07 payment 402 flow spec
-- `nips.nostr.com/19` — NIP-19 bech32 entities, hex-only requirement for protocol fields
-- `nips.nostr.com/11` — NIP-11 relay information document, global policy flags pattern
-- `owasp.org/Top10/2025/A01_2025-Broken_Access_Control/` — 401 vs 403 distinction, whitelist bypass patterns
-- `deno.com/blog/anatomy-isolate-cloud` — module-level state is isolate-local (cache propagation behavior)
-- `docs.bunny.net/docs/edge-scripting-limits` — Bunny EdgeScript isolate model
-- blssm.us codebase direct analysis: `src/storage/metadata.ts`, `src/auth/nostr.ts`, `src/handlers/blob-upload.ts`, `src/middleware/payments.ts`, `src/router.ts`
+- `github.com/hzrd149/blossom/blob/master/buds/07.md` — BUD-07: 402 flow, X-Cashu/X-Lightning headers, proof headers on retry, 400+X-Reason
+- `github.com/cashubtc/nuts/blob/main/24.md` — NUT-24: server 402 payment request format, client cashuB token on retry
+- `github.com/cashubtc/nuts/blob/main/07.md` — NUT-07: POST /v1/checkstate, Y = hash_to_curve(secret), UNSPENT/SPENT/PENDING states
+- `github.com/cashubtc/nuts/blob/main/18.md` — NUT-18: payment request encoding (base64url JSON, `creqA` prefix)
+- `github.com/lightning/bolts/blob/master/11-payment-encoding.md` — BOLT-11: preimage/payment_hash relationship
+- blssm.us codebase: `src/middleware/payments.ts`, `src/middleware/access.ts`, `src/types.ts`, `src/storage/metadata.ts`, `src/handlers/blob-upload.ts` — direct inspection
+- `.planning/PROJECT.md` — authoritative v1.1 requirements and out-of-scope decisions
+- `deno.com/blog/anatomy-isolate-cloud` — module-level state is isolate-local, not shared across edge nodes
 
 ### Secondary (MEDIUM confidence)
-- `github.com/hzrd149/umbrel-blob-box` — JSON config format with `whitelist` + `allowAnonymous` (reference implementation by spec author)
-- `github.com/hzrd149/blossom-server/blob/master/config.example.yml` — YAML rule-based config (official implementation, different pattern — not recommended for this project)
-- `khatru.nostr.technology/core/blossom` — Go `RejectUpload` hook pattern for access control logic
-- `nips.nostr.com/42` — NIP-42 client authentication, identity layer pattern
+- `github.com/cashubtc/xcashu` — X-Cashu reference implementation (inspected)
+- `402fordummies.dev` — NUT-24 flow diagram; confirms 5-step handshake
+- `npm registry` — `@cashu/cashu-ts@3.5.0` confirmed wallet-focused; unnecessary for server-side verification
+- `voltage.cloud/blog/lightning-payments-pre-images-hashes` — preimage verification requires known payment hash
+- `httptoolkit.com/blog/bunny-cdn-caching-vulnerability/` — Bunny CDN caching of auth-dependent responses (security research)
 
 ### Tertiary (LOW confidence)
-- `github.com/quentintaranpino/nostrcheck-server` — ban module + registration flow (README only, implementation details unverified)
-- `github.com/Spl0itable/nostr-relay-spam-blocklist` — relay spam volume data (community report, single source)
-- `httptoolkit.com/blog/bunny-cdn-caching-vulnerability/` — CDN caching of auth-dependent responses (published security research, applied by analogy)
+- NUT-09 (`cashubtc/nuts/blob/main/09.md`) — `hash_to_curve` exact algorithm: NOT verified during research; flagged for Phase 3 implementation
 
 ---
 *Research completed: 2026-02-24*
