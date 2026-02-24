@@ -38,7 +38,9 @@ Full details: `milestones/v1.0-ROADMAP.md`
   2. When config/payment.json is absent the server behaves as if payments are disabled and no 402s are issued
   3. Operator can set cacheTtl in config/access.json to any integer including 0 and the server respects the exact TTL for both access config and blocked hash caches
   4. With cacheTtl=0, every request fetches fresh config from Bunny Storage (no stale reads)
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 04-01-PLAN.md — Payment & cache config types, normalizers, and tests
 
 ### Phase 5: Access Control + Cache TTL
 **Goal**: The access control layer correctly routes unlisted pubkeys to payment in public+payments mode, with blacklist always taking priority
@@ -85,7 +87,7 @@ Phases execute in numeric order: 4 → 5 → 6 → 7
 | 1. Config Foundation | v1.0 | 1/1 | Complete | 2026-02-24 |
 | 2. Access Logic | v1.0 | 1/1 | Complete | 2026-02-24 |
 | 3. Endpoint Wiring | v1.0 | 1/1 | Complete | 2026-02-24 |
-| 4. Payment Config + Types | v1.1 | 0/? | Not started | - |
+| 4. Payment Config + Types | v1.1 | 0/1 | Not started | - |
 | 5. Access Control + Cache TTL | v1.1 | 0/? | Not started | - |
 | 6. Payment Middleware | v1.1 | 0/? | Not started | - |
 | 7. Handler Wiring | v1.1 | 0/? | Not started | - |
