@@ -58,6 +58,8 @@ export interface AccessConfig {
   whitelist: string[];
   /** Hex pubkeys always denied (in public mode; ignored in private mode) */
   blacklist: string[];
+  /** true = public+payments mode (unlisted pubkeys routed to payment). Only meaningful when public=true. Default: false */
+  payments?: boolean;
 }
 
 /** Server configuration from environment */
