@@ -11,18 +11,18 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 
 Milestone: v1.1 Payments & Cache
 Phase: 4 of 7 (Payment Config + Types)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-02-24 — v1.1 roadmap created, Phase 4 ready for planning
+Plan: 1 of 1 in current phase
+Status: In progress
+Last activity: 2026-02-24 — Phase 4 Plan 1 complete (payment/cache config types + normalizers)
 
-Progress: [███░░░░░░░] 30% (3/10 total plans complete across all milestones)
+Progress: [████░░░░░░] 40% (4/10 total plans complete across all milestones)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 4 min
-- Total execution time: 0.20 hours
+- Total plans completed: 4
+- Average duration: 5 min
+- Total execution time: 0.37 hours
 
 **By Phase:**
 
@@ -31,6 +31,7 @@ Progress: [███░░░░░░░] 30% (3/10 total plans complete across
 | 01-config-foundation | 1 | 8 min | 8 min |
 | 02-access-logic | 1 | 2 min | 2 min |
 | 03-endpoint-wiring | 1 | 10 min | 10 min |
+| 04-payment-config-types | 1 | 2 min | 2 min |
 
 *Updated after each plan completion*
 
@@ -46,6 +47,10 @@ Recent decisions affecting v1.1:
 - cacheTtl lives in config/access.json (not payment.json) — single location for cache config
 - Cashu token replay prevention via mint /v1/checkstate (NUT-07) — no in-memory tracking (stateless edge)
 - 402 responses must always include Cache-Control: no-store to prevent Bunny CDN caching
+- TTL=0 in cache.json maps to 1000ms floor (not true zero) — avoids storage hammering on burst traffic
+- Invalid payment amounts reject entire config (not field-level); invalid mint entries warn-and-skip
+- paymentsEnabled() checks mints.length > 0 only — amounts irrelevant without a mint to verify against
+- Max cache TTL cap: 86_400_000ms (24h) — reasonable operator protection
 
 ### Pending Todos
 
@@ -59,5 +64,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Roadmap created for v1.1, Phase 4 ready to plan
+Stopped at: Completed 04-01-PLAN.md (payment config types + cache config types)
 Resume file: None

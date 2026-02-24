@@ -9,9 +9,9 @@ Requirements for BUD-07 payment middleware, public+payments access mode, and con
 
 ### Payment Config
 
-- [ ] **PAY-01**: Operator can configure accepted Cashu mints, payment amount, and unit in config/payment.json
-- [ ] **PAY-02**: Payment config loads from Bunny Storage with configurable TTL cache (same pattern as access config)
-- [ ] **PAY-03**: Missing payment config defaults safely (payments disabled, no 402s)
+- [x] **PAY-01**: Operator can configure accepted Cashu mints, payment amount, and unit in config/payment.json
+- [x] **PAY-02**: Payment config loads from Bunny Storage with configurable TTL cache (same pattern as access config)
+- [x] **PAY-03**: Missing payment config defaults safely (payments disabled, no 402s)
 
 ### Payment Middleware
 
@@ -31,8 +31,8 @@ Requirements for BUD-07 payment middleware, public+payments access mode, and con
 
 ### Cache
 
-- [ ] **CACHE-01**: Operator can set cache TTL via config (including TTL=0 for always-fresh)
-- [ ] **CACHE-02**: Configurable TTL applies to both access config and blocked hash caches
+- [x] **CACHE-01**: Operator can set cache TTL via config (including TTL=0 for always-fresh)
+- [x] **CACHE-02**: Configurable TTL applies to both access config and blocked hash caches
 
 ## Future Requirements
 
@@ -64,9 +64,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PAY-01 | Phase 4 | Pending |
-| PAY-02 | Phase 4 | Pending |
-| PAY-03 | Phase 4 | Pending |
+| PAY-01 | Phase 4 | Complete |
+| PAY-02 | Phase 4 | Complete |
+| PAY-03 | Phase 4 | Complete |
 | PAY-04 | Phase 6 | Pending |
 | PAY-05 | Phase 6 | Pending |
 | PAY-06 | Phase 6 | Pending |
@@ -77,8 +77,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ACL-03 | Phase 5 | Pending |
 | ACL-04 | Phase 5 | Pending |
 | ACL-05 | Phase 5 | Pending |
-| CACHE-01 | Phase 4 | Pending |
-| CACHE-02 | Phase 4 | Pending |
+| CACHE-01 | Phase 4 | Complete |
+| CACHE-02 | Phase 4 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 15 total
