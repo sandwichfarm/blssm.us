@@ -3,6 +3,7 @@ import type { StorageClient } from "../storage/client.ts";
 import { validateAuth } from "../auth/nostr.ts";
 import { addOwner, addToIndex, isBlocked } from "../storage/metadata.ts";
 import { sha256Hex, errorResponse, jsonResponse, isValidSha256 } from "../util.ts";
+import { checkAccess } from "../middleware/access.ts";
 
 /**
  * BUD-04: PUT /mirror — Mirror a blob from a remote URL
@@ -24,6 +25,12 @@ export async function handleMirror(
   });
   if (!auth.authorized || !auth.pubkey) {
     return errorResponse(auth.error || "Unauthorized", 401);
+  }
+
+  // Access control — GATE-02: runs after auth, before body read
+  const access = await checkAccess(storage, auth.pubkey);
+  if (!access.allowed) {
+    return errorResponse(access.reason, 403);
   }
 
   // Parse request body

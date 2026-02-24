@@ -3,6 +3,7 @@ import type { StorageClient } from "../storage/client.ts";
 import { validateAuth } from "../auth/nostr.ts";
 import { addOwner, addToIndex, isBlocked } from "../storage/metadata.ts";
 import { sha256Hex, errorResponse, jsonResponse } from "../util.ts";
+import { checkAccess } from "../middleware/access.ts";
 
 /**
  * BUD-05: PUT /media — Upload media (store as-is)
@@ -26,6 +27,12 @@ export async function handleMedia(
   });
   if (!auth.authorized || !auth.pubkey) {
     return errorResponse(auth.error || "Unauthorized", 401);
+  }
+
+  // Access control — GATE-03: runs after auth, before body read
+  const access = await checkAccess(storage, auth.pubkey);
+  if (!access.allowed) {
+    return errorResponse(access.reason, 403);
   }
 
   // Read body
