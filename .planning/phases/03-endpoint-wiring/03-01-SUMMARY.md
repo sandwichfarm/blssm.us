@@ -114,6 +114,21 @@ None - no external service configuration required.
 - Ready for integration testing or deployment
 - No blockers
 
+## Self-Check: PASSED
+
+- src/handlers/blob-upload.ts — FOUND, contains checkAccess import and GATE-01 call
+- src/handlers/mirror.ts — FOUND, contains checkAccess import and GATE-02 call
+- src/handlers/media.ts — FOUND, contains checkAccess import and GATE-03 call
+- src/handlers/upload-check.ts — FOUND, contains checkAccess import and GATE-04/05 call
+- .planning/phases/03-endpoint-wiring/03-01-SUMMARY.md — FOUND
+- Commit ea6c0ec — FOUND (Task 1)
+- Commit fbd1ad8 — FOUND (Task 2)
+- Commit fb6b1c1 — FOUND (metadata)
+- deno check src/main.ts — PASSED
+- deno test src/ — PASSED (8 tests, 0 failed)
+- report.ts — no checkAccess references (GATE-06)
+- blob-get.ts — no checkAccess references (GATE-07)
+
 ---
 *Phase: 03-endpoint-wiring*
 *Completed: 2026-02-24*
