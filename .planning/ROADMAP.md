@@ -98,7 +98,9 @@ Plans:
   2. Changing accessTtl in config/cache.json changes the actual cache duration for access config lookups
   3. Changing paymentTtl in config/cache.json changes the actual cache duration for payment config lookups
   4. Changing blockedTtl in config/cache.json changes the actual cache duration for blocked hash lookups
-**Plans:** TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 08-01-PLAN.md — Wire loadCacheConfig into paymentGate, thread accessTtl/paymentTtl/blockedTtl to all three caches
 
 ## Progress
 
