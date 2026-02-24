@@ -4,6 +4,7 @@ import { validateAuth } from "../auth/nostr.ts";
 import { addOwner, addToIndex, isBlocked } from "../storage/metadata.ts";
 import { sha256Hex, errorResponse, jsonResponse, isValidSha256 } from "../util.ts";
 import { checkAccess } from "../middleware/access.ts";
+import { paymentGate } from "../middleware/payment-gate.ts";
 
 /**
  * BUD-04: PUT /mirror — Mirror a blob from a remote URL
@@ -12,6 +13,8 @@ import { checkAccess } from "../middleware/access.ts";
  * Fetches the remote URL, computes SHA-256, stores blob.
  * Requires Nostr auth with t=upload.
  * If auth event has `x` tag, fetched blob hash must match.
+ *
+ * SC4 exception: JSON body is read BEFORE access/payment check (needed for remote HEAD pricing).
  */
 export async function handleMirror(
   request: Request,
@@ -27,20 +30,7 @@ export async function handleMirror(
     return errorResponse(auth.error || "Unauthorized", 401);
   }
 
-  // Access control — GATE-02: runs after auth, before body read
-  const access = await checkAccess(storage, auth.pubkey, "mirror");
-  if (!access.allowed) {
-    if (access.requiresPayment) {
-      // Minimal 402 stub — Phase 6 replaces with full BUD-07 format (X-Cashu, X-Lightning headers)
-      return new Response(JSON.stringify({ message: "payment_required" }), {
-        status: 402,
-        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-      });
-    }
-    return errorResponse(access.reason, 403);
-  }
-
-  // Parse request body
+  // SC4 exception: Parse JSON body first to get the remote URL for HEAD-based pricing
   let body: { url: string };
   try {
     body = await request.json();
@@ -50,6 +40,28 @@ export async function handleMirror(
 
   if (!body.url || typeof body.url !== "string") {
     return errorResponse("Missing 'url' field", 400);
+  }
+
+  // Access control — GATE-02: runs after auth + JSON parse (SC4 approved exception)
+  const access = await checkAccess(storage, auth.pubkey, "mirror");
+  if (!access.allowed) {
+    if (access.requiresPayment) {
+      // HEAD remote URL to get file size for pricing
+      let remoteSize = 0;
+      try {
+        const headResp = await fetch(body.url, { method: "HEAD" });
+        const cl = headResp.headers.get("Content-Length");
+        remoteSize = cl ? parseInt(cl, 10) : 0;
+      } catch {
+        // HEAD failed — use 0 (1-sat floor applies via computeSatPrice)
+      }
+      if (isNaN(remoteSize)) remoteSize = 0;
+      const gate = await paymentGate(request, storage, remoteSize);
+      if (gate) return gate;
+      // null = proof valid, fall through to fetch
+    } else {
+      return errorResponse(access.reason, 403);
+    }
   }
 
   // Fetch the remote blob

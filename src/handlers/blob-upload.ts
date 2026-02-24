@@ -4,6 +4,7 @@ import { validateAuth } from "../auth/nostr.ts";
 import { addOwner, addToIndex, isBlocked } from "../storage/metadata.ts";
 import { sha256Hex, errorResponse, jsonResponse, isValidSha256 } from "../util.ts";
 import { checkAccess } from "../middleware/access.ts";
+import { paymentGate } from "../middleware/payment-gate.ts";
 
 /**
  * BUD-02: PUT /upload — Upload a blob
@@ -30,13 +31,17 @@ export async function handleBlobUpload(
   const access = await checkAccess(storage, auth.pubkey, "upload");
   if (!access.allowed) {
     if (access.requiresPayment) {
-      // Minimal 402 stub — Phase 6 replaces with full BUD-07 format (X-Cashu, X-Lightning headers)
-      return new Response(JSON.stringify({ message: "payment_required" }), {
-        status: 402,
-        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-      });
+      const cl = request.headers.get("Content-Length");
+      const fileSizeBytes = cl ? parseInt(cl, 10) : NaN;
+      if (isNaN(fileSizeBytes)) {
+        return errorResponse("Content-Length required for payment calculation", 411);
+      }
+      const gate = await paymentGate(request, storage, fileSizeBytes);
+      if (gate) return gate;
+      // null = proof valid, fall through to body read
+    } else {
+      return errorResponse(access.reason, 403);
     }
-    return errorResponse(access.reason, 403);
   }
 
   // Read body
