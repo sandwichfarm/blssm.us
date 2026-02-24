@@ -42,7 +42,9 @@ Plans:
   3. In public mode, whitelist membership has no effect on the outcome
   4. In private mode, only a whitelisted pubkey receives an allow result — all others are denied
   5. In private mode, blacklist membership has no effect on the outcome
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 02-01-PLAN.md — checkAccess() TDD: decision function + AccessResult type covering all mode/list combinations
 
 ### Phase 3: Endpoint Wiring
 **Goal**: Access control is active on all write endpoints, absent from read and report endpoints, and returns correct HTTP responses
