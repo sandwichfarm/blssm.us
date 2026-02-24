@@ -5,24 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** Server operator can control exactly who is allowed to publish blobs
-**Current focus:** v1.1 Phase 6 — Payment Verification
+**Current focus:** v1.1 Phase 7 — Handler Wiring
 
 ## Current Position
 
 Milestone: v1.1 Payments & Cache
-Phase: 6 of 7 (Payment Middleware) — IN PROGRESS
-Plan: 3 of 3 plans done
-Status: Phase 6 Plan 3 complete (Cashu proof validator — validateCashuPayment, validateTokenStructure, buildPaymentError, spent-proof cache)
-Last activity: 2026-02-24 — Phase 6 Plan 3 complete (proof-validator.ts, ValidationResult type, 10 tests)
+Phase: 7 of 7 (Handler Wiring) — IN PROGRESS
+Plan: 1 of 2 plans done
+Status: Phase 7 Plan 1 complete (paymentGate() middleware + startPriceFeedCron wiring)
+Last activity: 2026-02-25 — Phase 7 Plan 1 complete (payment-gate.ts, 7 tests, main.ts wiring)
 
-Progress: [█████████░] 90% (9/11 total plans complete across all milestones)
+Progress: [██████████] 91% (10/11 total plans complete across all milestones)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
+- Total plans completed: 10
 - Average duration: 4 min
-- Total execution time: 0.70 hours
+- Total execution time: 0.73 hours
 
 **By Phase:**
 
@@ -34,6 +34,7 @@ Progress: [█████████░] 90% (9/11 total plans complete across
 | 04-payment-config-types | 1 | 2 min | 2 min |
 | 05-access-control-cache-ttl | 2 | 4 min | 2 min |
 | 06-payment-middleware | 3 (of 3) | 17 min | 5.7 min |
+| 07-handler-wiring | 1 (of 2) | 2 min | 2 min |
 
 *Updated after each plan completion*
 
@@ -70,6 +71,8 @@ Recent decisions affecting v1.1:
 - cashu-ts v3 exports Wallet/Mint not CashuWallet/CashuMint; rollup d.ts wraps exports requiring @ts-ignore
 - validateTokenStructure exported as pure function for unit-testable proof validation without network calls
 - Overpayment accepted as tip — wallet.receive() consumes all proofs, server discards returned new proofs
+- paymentGate() accepts optional deps parameter for test injection (Deno lacks module-level mocking)
+- paymentGate() fails open on null BTC price — startup race safety, mint still validates cryptographically
 
 ### Pending Todos
 
@@ -82,6 +85,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-24
-Stopped at: Completed 06-03-PLAN.md (Cashu proof validator — proof-validator.ts with NUT-03 swap, spent-proof cache)
+Last session: 2026-02-25
+Stopped at: Completed 07-01-PLAN.md (paymentGate() middleware + startPriceFeedCron wiring)
 Resume file: None

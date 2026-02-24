@@ -82,7 +82,7 @@ Plans:
   2. The HEAD /upload preflight returns 402 for an unlisted pubkey but never consumes a Cashu proof
   3. Mirror, media upload, and delete endpoints all enforce the same payment gate as blob upload
   4. No write handler reads the request body before completing the access and payment checks
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 07-01-PLAN.md — TDD: paymentGate() shared helper + startPriceFeedCron wiring in main.ts
 - [ ] 07-02-PLAN.md — Wire paymentGate into PUT handlers and HEAD preflights, replace all stub 402s
@@ -100,4 +100,4 @@ Phases execute in numeric order: 4 → 5 → 6 → 7
 | 4. Payment Config + Types | 1/1 | Complete   | 2026-02-24 | - |
 | 5. Access Control + Cache TTL | 2/2 | Complete    | 2026-02-24 | - |
 | 6. Payment Middleware | 3/3 | Complete    | 2026-02-24 | - |
-| 7. Handler Wiring | v1.1 | 0/? | Not started | - |
+| 7. Handler Wiring | 1/2 | In Progress|  | - |
