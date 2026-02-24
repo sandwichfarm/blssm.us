@@ -91,6 +91,6 @@ Phases execute in numeric order: 4 → 5 → 6 → 7
 | 2. Access Logic | v1.0 | 1/1 | Complete | 2026-02-24 |
 | 3. Endpoint Wiring | v1.0 | 1/1 | Complete | 2026-02-24 |
 | 4. Payment Config + Types | 1/1 | Complete   | 2026-02-24 | - |
-| 5. Access Control + Cache TTL | 2/2 | Complete   | 2026-02-24 | - |
+| 5. Access Control + Cache TTL | 2/2 | Complete    | 2026-02-24 | - |
 | 6. Payment Middleware | v1.1 | 0/? | Not started | - |
 | 7. Handler Wiring | v1.1 | 0/? | Not started | - |
