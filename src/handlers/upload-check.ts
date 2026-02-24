@@ -3,6 +3,7 @@ import type { StorageClient } from "../storage/client.ts";
 import { validateAuth } from "../auth/nostr.ts";
 import { isBlocked } from "../storage/metadata.ts";
 import { errorResponse, isValidSha256 } from "../util.ts";
+import { checkAccess } from "../middleware/access.ts";
 
 /**
  * BUD-06: HEAD /upload — Upload pre-flight check
@@ -32,6 +33,18 @@ export async function handleUploadCheck(
         status: 403,
         headers: { "X-Reason": auth.error || "Invalid authorization" },
       });
+    }
+
+    // Access control — GATE-04/GATE-05: check after auth succeeds
+    // HEAD responses have no body — use X-Reason header (consistent with handler pattern)
+    if (auth.pubkey) {
+      const access = await checkAccess(storage, auth.pubkey);
+      if (!access.allowed) {
+        return new Response(null, {
+          status: 403,
+          headers: { "X-Reason": access.reason },
+        });
+      }
     }
   }
 
