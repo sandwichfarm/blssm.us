@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Milestone: v1.1 Payments & Cache
-Phase: 5 of 7 (Access Control + Cache TTL) — COMPLETE
-Plan: Phase complete — 2 of 2 plans done
-Status: Phase 5 complete, advancing to Phase 6
-Last activity: 2026-02-24 — Phase 5 Plan 2 complete (cache TTL wiring + handler 402 branches)
+Phase: 6 of 7 (Payment Middleware) — IN PROGRESS
+Plan: 1 of 3 plans done
+Status: Phase 6 Plan 1 complete (pricing infrastructure — price-feed module, PricingConfig, TOML config)
+Last activity: 2026-02-24 — Phase 6 Plan 1 complete (pricing infrastructure, price-feed module)
 
-Progress: [██████░░░░] 60% (6/10 total plans complete across all milestones)
+Progress: [███████░░░] 70% (7/10 total plans complete across all milestones)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
+- Total plans completed: 7
 - Average duration: 4 min
-- Total execution time: 0.42 hours
+- Total execution time: 0.47 hours
 
 **By Phase:**
 
@@ -33,6 +33,7 @@ Progress: [██████░░░░] 60% (6/10 total plans complete across
 | 03-endpoint-wiring | 1 | 10 min | 10 min |
 | 04-payment-config-types | 1 | 2 min | 2 min |
 | 05-access-control-cache-ttl | 2 | 4 min | 2 min |
+| 06-payment-middleware | 1 (of 3) | 3 min | 3 min |
 
 *Updated after each plan completion*
 
@@ -58,6 +59,10 @@ Recent decisions affecting v1.1:
 - checkAccess threads optional ttlMs through to loadAccessConfig (single TTL injection point per call)
 - HEAD /upload 402 uses X-Reason: payment_required with no body (BUD-06 HEAD responses must be bodyless)
 - 402 handler stubs are minimal — Phase 6 replaces with full BUD-07 format (X-Cashu, X-Lightning headers)
+- setInterval (not Deno.cron) for BTC price feed cron — runtime portability
+- computeSatPrice uses 1-sat floor: Math.max(1, ceil(...)) — prevents zero pricing on tiny files
+- loadPricingConfig defaults entire [pricing] section on any invalid field (matches payment-config.ts reject-all pattern)
+- deno.ns reference directive required on non-test files that use Deno.readTextFile/writeTextFile
 
 ### Pending Todos
 
@@ -71,5 +76,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 05-02-PLAN.md (cache TTL wiring + all handler 402 branches)
+Stopped at: Completed 06-01-PLAN.md (pricing infrastructure — price-feed module, PricingConfig, TOML config)
 Resume file: None

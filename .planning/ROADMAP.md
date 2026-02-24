@@ -24,7 +24,7 @@ Full details: `milestones/v1.0-ROADMAP.md`
 
 - [x] **Phase 4: Payment Config + Types** - Define PaymentConfig type, config/payment.json schema, cacheTtl field, and safe defaults (completed 2026-02-24)
 - [x] **Phase 5: Access Control + Cache TTL** - Extend checkAccess() with public+payments mode and wire configurable TTL (completed 2026-02-24)
-- [ ] **Phase 6: Payment Middleware** - Implement Cashu verification, BUD-07 compliant 402 responses, and payment error handling
+- [ ] **Phase 6: Payment Middleware** - Implement Cashu verification, BUD-07 compliant 402 responses, and payment error handling (1/3 plans done)
 - [ ] **Phase 7: Handler Wiring** - Wire payment gate into all five write handlers and integration-test the full 402 flow
 
 ## Phase Details
@@ -69,7 +69,7 @@ Plans:
   5. A client presenting a spent or invalid Cashu proof receives 400 + X-Reason header
 **Plans:** 3 plans
 Plans:
-- [ ] 06-01-PLAN.md — Pricing infrastructure: TOML config, dual-source BTC/USD price feed, computeSatPrice
+- [x] 06-01-PLAN.md — Pricing infrastructure: TOML config, dual-source BTC/USD price feed, computeSatPrice
 - [ ] 06-02-PLAN.md — TDD: BUD-07 compliant 402 response builder with NUT-18 X-Cashu header
 - [ ] 06-03-PLAN.md — TDD: Cashu proof validator with NUT-03 swap consumption and spent-proof cache
 
@@ -96,5 +96,5 @@ Phases execute in numeric order: 4 → 5 → 6 → 7
 | 3. Endpoint Wiring | v1.0 | 1/1 | Complete | 2026-02-24 |
 | 4. Payment Config + Types | 1/1 | Complete   | 2026-02-24 | - |
 | 5. Access Control + Cache TTL | 2/2 | Complete    | 2026-02-24 | - |
-| 6. Payment Middleware | v1.1 | 0/3 | Not started | - |
+| 6. Payment Middleware | v1.1 | 1/3 | In Progress | - |
 | 7. Handler Wiring | v1.1 | 0/? | Not started | - |
