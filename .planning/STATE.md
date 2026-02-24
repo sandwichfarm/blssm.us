@@ -11,18 +11,18 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 
 Milestone: v1.1 Payments & Cache
 Phase: 6 of 7 (Payment Middleware) — IN PROGRESS
-Plan: 1 of 3 plans done
-Status: Phase 6 Plan 1 complete (pricing infrastructure — price-feed module, PricingConfig, TOML config)
-Last activity: 2026-02-24 — Phase 6 Plan 1 complete (pricing infrastructure, price-feed module)
+Plan: 2 of 3 plans done
+Status: Phase 6 Plan 2 complete (BUD-07 NUT-18 402 builder — buildPaymentRequired with X-Cashu header)
+Last activity: 2026-02-24 — Phase 6 Plan 2 complete (buildPaymentRequired, NUT-18 X-Cashu header encoding)
 
-Progress: [███████░░░] 70% (7/10 total plans complete across all milestones)
+Progress: [████████░░] 80% (8/11 total plans complete across all milestones)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: 4 min
-- Total execution time: 0.47 hours
+- Total execution time: 0.58 hours
 
 **By Phase:**
 
@@ -33,7 +33,7 @@ Progress: [███████░░░] 70% (7/10 total plans complete across
 | 03-endpoint-wiring | 1 | 10 min | 10 min |
 | 04-payment-config-types | 1 | 2 min | 2 min |
 | 05-access-control-cache-ttl | 2 | 4 min | 2 min |
-| 06-payment-middleware | 1 (of 3) | 3 min | 3 min |
+| 06-payment-middleware | 2 (of 3) | 10 min | 5 min |
 
 *Updated after each plan completion*
 
@@ -63,6 +63,10 @@ Recent decisions affecting v1.1:
 - computeSatPrice uses 1-sat floor: Math.max(1, ceil(...)) — prevents zero pricing on tiny files
 - loadPricingConfig defaults entire [pricing] section on any invalid field (matches payment-config.ts reject-all pattern)
 - deno.ns reference directive required on non-test files that use Deno.readTextFile/writeTextFile
+- deno.ns reference directive also required in test files that use Deno.test (not just non-test files)
+- buildPaymentRequired takes raw params (not config struct) for testability and explicitness
+- X-Lightning omitted from 402 until Lightning verification is wired (honored in Phase 6 Plan 2)
+- NUT-18 PaymentRequest: singleUse=true for stateless fresh quote per request — no quote caching
 
 ### Pending Todos
 
@@ -76,5 +80,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 06-01-PLAN.md (pricing infrastructure — price-feed module, PricingConfig, TOML config)
+Stopped at: Completed 06-02-PLAN.md (buildPaymentRequired BUD-07 NUT-18 402 builder)
 Resume file: None
