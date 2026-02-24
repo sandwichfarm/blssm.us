@@ -132,6 +132,16 @@ export interface PaymentConfig {
   amounts: PaymentAmounts;
 }
 
+/** USD-basis pricing parameters from config/payment.toml */
+export interface PricingConfig {
+  /** USD cost per gigabyte of storage */
+  cost_per_gb_usd: number;
+  /** Profit margin as decimal (0.20 = 20%) */
+  profit_margin_pct: number;
+  /** Slippage premium as decimal (0.05 = 5%) */
+  slippage_premium_pct: number;
+}
+
 /**
  * Cache TTL configuration from config/cache.json.
  * All values are in milliseconds internally (JSON values are in seconds).
