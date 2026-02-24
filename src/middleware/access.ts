@@ -6,10 +6,13 @@ import { isValidPubkey } from "../util.ts";
 // across running instances. Matches BLOCKED_CACHE_TTL_MS in storage/metadata.ts.
 const ACCESS_CACHE_TTL_MS = 60_000;
 
+/** Actions that can be gated by access control */
+export type AccessAction = "upload" | "mirror" | "delete";
+
 interface AccessCache {
   config: AccessConfig;
-  whitelist: Set<string>; // Pre-built for O(1) lookup in Phase 2
-  blacklist: Set<string>; // Pre-built for O(1) lookup in Phase 2
+  whitelist: Set<string>; // Pre-built for O(1) lookup
+  blacklist: Set<string>; // Pre-built for O(1) lookup
   expires: number;
 }
 
@@ -24,6 +27,7 @@ const DEFAULT_ACCESS_CONFIG: AccessConfig = {
   public: true,
   whitelist: [],
   blacklist: [],
+  payments: false,
 };
 
 /** Filter raw pubkey list — skip and warn on non-hex-64 entries (CFG-06) */
@@ -44,17 +48,31 @@ function filterPubkeys(list: unknown, fieldName: string): string[] {
 function normalizeAccessConfig(raw: unknown): AccessConfig {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_ACCESS_CONFIG };
   const r = raw as Record<string, unknown>;
+
+  const isPublic = typeof r.public === "boolean" ? r.public : true;
+
+  // Normalize payments field:
+  // - Missing field → false silently (no log)
+  // - Non-boolean → false silently
+  // - true + public=false → false with warning (payments is meaningless in private mode)
+  let payments = typeof r.payments === "boolean" ? r.payments : false;
+  if (payments && !isPublic) {
+    console.warn("[access] payments=true ignored in private mode (public=false)");
+    payments = false;
+  }
+
   return {
-    public: typeof r.public === "boolean" ? r.public : true,
+    public: isPublic,
     whitelist: filterPubkeys(r.whitelist, "whitelist"),
     blacklist: filterPubkeys(r.blacklist, "blacklist"),
+    payments,
   };
 }
 
 /**
  * Access check result — discriminated union consumed by gated write handlers.
  *
- * Decision matrix (v1):
+ * Decision matrix (v1.1):
  *   Mode     | Pubkey state        | Decision  | Req
  *   ---------|---------------------|-----------|------
  *   public   | blacklisted         | DENY 403  | ACL-02
@@ -63,9 +81,11 @@ function normalizeAccessConfig(raw: unknown): AccessConfig {
  *   private  | whitelisted         | ALLOW     | ACL-04
  *   private  | not whitelisted     | DENY 403  | ACL-05
  *   private  | blacklisted only    | DENY 403  | ACL-05 (blacklist irrelevant: denied by "not whitelisted")
- *
- * NOTE: `requiresPayment` is RESERVED for v2 payment composition.
- * It MUST NOT be set in any v1 return path. Handlers always return 403 on denied.
+ *   pub+pay  | blacklisted         | DENY 403  | ACL-03
+ *   pub+pay  | whitelisted         | ALLOW     | ACL-02
+ *   pub+pay  | unlisted + upload   | PAY 402   | ACL-04
+ *   pub+pay  | unlisted + mirror   | PAY 402   | ACL-04
+ *   pub+pay  | unlisted + delete   | ALLOW     | ACL-04 (delete always free)
  */
 export type AccessResult =
   | { allowed: true }
@@ -90,28 +110,39 @@ export async function loadAccessConfig(storage: StorageClient): Promise<AccessCa
 }
 
 /**
- * Core access control decision function — ACL-07: signature takes (storage, pubkey) only.
+ * Core access control decision function.
  * Callers MUST invoke this BEFORE reading the request body (request.arrayBuffer()).
  *
  * @param storage - StorageClient used to load access config via loadAccessConfig()
  * @param pubkey - hex-64 pubkey to evaluate; obtained from validateAuth() result
- * @returns AccessResult — { allowed: true } or { allowed: false, reason }
+ * @param action - The action being requested (upload, mirror, or delete)
+ * @returns AccessResult — { allowed: true } or { allowed: false, reason, requiresPayment? }
  */
 export async function checkAccess(
   storage: StorageClient,
   pubkey: string,
+  action: AccessAction,
 ): Promise<AccessResult> {
   const cache = await loadAccessConfig(storage);
 
   if (cache.config.public) {
-    // Public mode (ACL-01, ACL-02, ACL-03):
-    // - Blacklist bans unconditionally (ACL-02)
-    // - Whitelist has NO effect in v1 — do NOT add a whitelist fast-path here (ACL-03)
-    // - Everyone else is allowed (ACL-01)
+    // Blacklist always takes priority in all public modes (ACL-03)
     if (cache.blacklist.has(pubkey)) {
-      return { allowed: false, reason: "pubkey is blacklisted" }; // ACL-02
+      return { allowed: false, reason: "pubkey is blacklisted" };
     }
-    return { allowed: true }; // ACL-01
+
+    // Public+payments mode (v1.1)
+    if (cache.config.payments && action !== "delete") {
+      // Whitelisted pubkeys bypass payment (ACL-02)
+      if (cache.whitelist.has(pubkey)) {
+        return { allowed: true };
+      }
+      // Unlisted pubkeys are routed to payment for upload/mirror (ACL-04)
+      return { allowed: false, reason: "payment_required", requiresPayment: true };
+    }
+
+    // Plain public mode: everyone allowed (ACL-01)
+    return { allowed: true };
   }
 
   // Private mode (ACL-04, ACL-05, ACL-06):
