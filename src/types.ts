@@ -96,3 +96,50 @@ export interface PaymentInfo {
   /** LNURL or Lightning address */
   lnurl?: string;
 }
+
+/**
+ * A single Cashu mint entry in operator payment config.
+ * Minimal for v1; future phases may add optional per-mint fields (e.g. weight, label).
+ */
+export interface MintEntry {
+  /** HTTPS URL of the Cashu mint */
+  url: string;
+}
+
+/**
+ * Per-action payment amounts in satoshis.
+ * 0 = free for that action (no 402 issued).
+ * Delete is always free and excluded by design (encourages storage cleanup).
+ */
+export interface PaymentAmounts {
+  /** Satoshis required to upload a blob; 0 = free */
+  upload: number;
+  /** Satoshis required to mirror a blob; 0 = free */
+  mirror: number;
+}
+
+/**
+ * Operator configuration from config/payment.json.
+ * NOT the same as PaymentInfo (which is the 402 response format sent to clients).
+ * An empty mints array disables payments entirely, even if amounts are set.
+ */
+export interface PaymentConfig {
+  /** Cashu mints accepted for payment verification */
+  mints: MintEntry[];
+  /** Per-action amounts in satoshis */
+  amounts: PaymentAmounts;
+}
+
+/**
+ * Cache TTL configuration from config/cache.json.
+ * All values are in milliseconds internally (JSON values are in seconds).
+ * Missing config/cache.json defaults to 60 seconds for all caches.
+ */
+export interface CacheConfig {
+  /** TTL in ms for the access config cache (config/access.json) */
+  accessTtl: number;
+  /** TTL in ms for the payment config cache (config/payment.json) */
+  paymentTtl: number;
+  /** TTL in ms for the blocked hashes cache (config/blocked.json) */
+  blockedTtl: number;
+}
