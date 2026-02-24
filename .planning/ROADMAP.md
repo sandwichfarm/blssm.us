@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 Access Control** — Phases 1-3 (shipped 2026-02-24)
-- 🚧 **v1.1 Payments & Cache** — Phases 4-7 (in progress)
+- 🚧 **v1.1 Payments & Cache** — Phases 4-8 (in progress)
 
 ## Phases
 
@@ -26,6 +26,7 @@ Full details: `milestones/v1.0-ROADMAP.md`
 - [x] **Phase 5: Access Control + Cache TTL** - Extend checkAccess() with public+payments mode and wire configurable TTL (completed 2026-02-24)
 - [x] **Phase 6: Payment Middleware** - Implement Cashu verification, BUD-07 compliant 402 responses, and payment error handling (1/3 plans done) (completed 2026-02-24)
 - [x] **Phase 7: Handler Wiring** - Wire payment gate into all five write handlers and integration-test the full 402 flow (completed 2026-02-24)
+- [ ] **Phase 8: Cache TTL Wiring** - Wire loadCacheConfig into runtime call sites so operator TTL config takes effect (gap closure)
 
 ## Phase Details
 
@@ -87,10 +88,22 @@ Plans:
 - [ ] 07-01-PLAN.md — TDD: paymentGate() shared helper + startPriceFeedCron wiring in main.ts
 - [ ] 07-02-PLAN.md — Wire paymentGate into PUT handlers and HEAD preflights, replace all stub 402s
 
+### Phase 8: Cache TTL Wiring
+**Goal**: Operator-configured cache TTL values from config/cache.json are applied at runtime to all three cache modules
+**Depends on**: Phase 7
+**Requirements**: CACHE-01, CACHE-02
+**Gap Closure:** Closes gaps from v1.1 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. loadCacheConfig(storage) is called in production code and its returned values reach checkAccess, loadPaymentConfig, and isBlocked via their ttlMs parameters
+  2. Changing accessTtl in config/cache.json changes the actual cache duration for access config lookups
+  3. Changing paymentTtl in config/cache.json changes the actual cache duration for payment config lookups
+  4. Changing blockedTtl in config/cache.json changes the actual cache duration for blocked hash lookups
+**Plans:** TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 4 → 5 → 6 → 7
+Phases execute in numeric order: 4 → 5 → 6 → 7 → 8
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -101,3 +114,4 @@ Phases execute in numeric order: 4 → 5 → 6 → 7
 | 5. Access Control + Cache TTL | 2/2 | Complete    | 2026-02-24 | - |
 | 6. Payment Middleware | 3/3 | Complete    | 2026-02-24 | - |
 | 7. Handler Wiring | 2/2 | Complete   | 2026-02-24 | - |
+| 8. Cache TTL Wiring | 0/? | Not started | - | - |
