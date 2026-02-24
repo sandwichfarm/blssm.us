@@ -52,7 +52,7 @@ Plans:
   3. In public+payments mode, a blacklisted pubkey receives 403 even if they include a valid payment proof
   4. In public+payments mode, an unlisted pubkey receives a signal requiring payment (not a flat 403)
   5. Existing configs with public: true or private mode behave exactly as before with no behavior change
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 05-01-PLAN.md — TDD: checkAccess public+payments mode, AccessAction type, normalizer extension
 - [ ] 05-02-PLAN.md — Cache TTL wiring + handler call site updates with 402 response branch
@@ -91,6 +91,6 @@ Phases execute in numeric order: 4 → 5 → 6 → 7
 | 2. Access Logic | v1.0 | 1/1 | Complete | 2026-02-24 |
 | 3. Endpoint Wiring | v1.0 | 1/1 | Complete | 2026-02-24 |
 | 4. Payment Config + Types | 1/1 | Complete   | 2026-02-24 | - |
-| 5. Access Control + Cache TTL | v1.1 | 0/2 | Not started | - |
+| 5. Access Control + Cache TTL | 1/2 | In Progress|  | - |
 | 6. Payment Middleware | v1.1 | 0/? | Not started | - |
 | 7. Handler Wiring | v1.1 | 0/? | Not started | - |

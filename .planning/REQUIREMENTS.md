@@ -23,11 +23,11 @@ Requirements for BUD-07 payment middleware, public+payments access mode, and con
 
 ### Access Control
 
-- [ ] **ACL-01**: Operator can enable public+payments mode via payments field in access config
-- [ ] **ACL-02**: In public+payments mode, whitelisted pubkeys upload free (no 402)
-- [ ] **ACL-03**: In public+payments mode, blacklisted pubkeys are denied (403, not 402)
-- [ ] **ACL-04**: In public+payments mode, unlisted pubkeys receive 402 payment required
-- [ ] **ACL-05**: Existing public and private modes work unchanged (backward compatible)
+- [x] **ACL-01**: Operator can enable public+payments mode via payments field in access config
+- [x] **ACL-02**: In public+payments mode, whitelisted pubkeys upload free (no 402)
+- [x] **ACL-03**: In public+payments mode, blacklisted pubkeys are denied (403, not 402)
+- [x] **ACL-04**: In public+payments mode, unlisted pubkeys receive 402 payment required
+- [x] **ACL-05**: Existing public and private modes work unchanged (backward compatible)
 
 ### Cache
 
@@ -72,11 +72,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PAY-06 | Phase 6 | Pending |
 | PAY-07 | Phase 6 | Pending |
 | PAY-08 | Phase 6 | Pending |
-| ACL-01 | Phase 5 | Pending |
-| ACL-02 | Phase 5 | Pending |
-| ACL-03 | Phase 5 | Pending |
-| ACL-04 | Phase 5 | Pending |
-| ACL-05 | Phase 5 | Pending |
+| ACL-01 | Phase 5 | Complete |
+| ACL-02 | Phase 5 | Complete |
+| ACL-03 | Phase 5 | Complete |
+| ACL-04 | Phase 5 | Complete |
+| ACL-05 | Phase 5 | Complete |
 | CACHE-01 | Phase 4 | Complete |
 | CACHE-02 | Phase 4 | Complete |
 
