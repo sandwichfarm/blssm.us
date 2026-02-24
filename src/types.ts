@@ -49,6 +49,17 @@ export interface BlockedConfig {
   hashes: string[];
 }
 
+/** Access control configuration from config/access.json */
+export interface AccessConfig {
+  /** true = public mode (anyone can publish unless blacklisted)
+   *  false = private mode (only whitelisted pubkeys can publish) */
+  public: boolean;
+  /** Hex pubkeys always allowed (in public+payments mode, also skip payment) */
+  whitelist: string[];
+  /** Hex pubkeys always denied (in public mode; ignored in private mode) */
+  blacklist: string[];
+}
+
 /** Server configuration from environment */
 export interface Config {
   /** Storage zone password (FTP & API Access → Password) */
