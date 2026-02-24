@@ -1,50 +1,41 @@
-import type { Config, PaymentInfo } from "../types.ts";
+import { PaymentRequest } from "@cashu/cashu-ts";
+import { computeSatPrice } from "./price-feed.ts";
+import type { PricingConfig } from "../types.ts";
 
 /**
- * BUD-07: Payment gate middleware
+ * BUD-07: Build a 402 Payment Required response with NUT-18 encoded X-Cashu header.
  *
- * Returns a 402 Payment Required response with payment info headers.
- * This is a framework — actual payment verification logic (Lightning preimage,
- * Cashu token validation) would need to be customized per deployment.
+ * Headers only, no JSON body (strict BUD-07 compliance per user decision).
+ * X-Lightning is omitted until Lightning verification is wired (user decision).
+ * Fresh quote generated per request — stateless, no caching of quotes.
  */
-export function paymentRequired(info: PaymentInfo): Response {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+export function buildPaymentRequired(
+  fileSizeBytes: number,
+  acceptedMintUrls: string[],
+  btcUsdPrice: number,
+  pricingConfig: PricingConfig,
+): Response {
+  const satAmount = computeSatPrice(fileSizeBytes, btcUsdPrice, pricingConfig);
 
-  if (info.lnurl) {
-    headers["X-Lightning"] = info.lnurl;
-  }
-
-  headers["X-Payment-Amount"] = info.amount.toString();
-  headers["X-Payment-Unit"] = info.unit;
-
-  return new Response(
-    JSON.stringify({
-      message: "Payment required",
-      amount: info.amount,
-      unit: info.unit,
-      lnurl: info.lnurl,
-    }),
-    {
-      status: 402,
-      headers,
-    },
+  // NUT-18 PaymentRequest encoding (verified constructor param order from cashu-ts source):
+  // new PaymentRequest(transport?, id?, amount?, unit?, mints?, description?, singleUse?, nut10?)
+  const paymentRequest = new PaymentRequest(
+    [],               // transport: empty = in-band via X-Cashu header (NUT-24 pattern)
+    undefined,        // id: no payment id needed
+    satAmount,        // amount in sats
+    "sat",            // unit
+    acceptedMintUrls, // mints: string[] of accepted mint URLs
+    undefined,        // description
+    true,             // singleUse: true (fresh quote per request, per user decision)
   );
-}
 
-/**
- * Verify a Lightning payment preimage.
- * The preimage's SHA-256 should match the payment hash.
- *
- * This is a placeholder — real implementation would verify
- * against a Lightning node or payment provider API.
- */
-export async function verifyLightningPayment(
-  preimage: string,
-): Promise<boolean> {
-  // TODO: Implement actual Lightning preimage verification
-  // 1. Hash the preimage with SHA-256
-  // 2. Check the hash against known payment hashes from your LN node
-  return false;
+  const encoded = paymentRequest.toEncodedRequest(); // "creqA..." prefix
+
+  return new Response(null, {
+    status: 402,
+    headers: {
+      "X-Cashu": encoded,
+      "Cache-Control": "no-store",
+    },
+  });
 }
