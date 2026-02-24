@@ -11,18 +11,18 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 
 Milestone: v1.1 Payments & Cache
 Phase: 6 of 7 (Payment Middleware) — IN PROGRESS
-Plan: 2 of 3 plans done
-Status: Phase 6 Plan 2 complete (BUD-07 NUT-18 402 builder — buildPaymentRequired with X-Cashu header)
-Last activity: 2026-02-24 — Phase 6 Plan 2 complete (buildPaymentRequired, NUT-18 X-Cashu header encoding)
+Plan: 3 of 3 plans done
+Status: Phase 6 Plan 3 complete (Cashu proof validator — validateCashuPayment, validateTokenStructure, buildPaymentError, spent-proof cache)
+Last activity: 2026-02-24 — Phase 6 Plan 3 complete (proof-validator.ts, ValidationResult type, 10 tests)
 
-Progress: [████████░░] 80% (8/11 total plans complete across all milestones)
+Progress: [█████████░] 90% (9/11 total plans complete across all milestones)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: 4 min
-- Total execution time: 0.58 hours
+- Total execution time: 0.70 hours
 
 **By Phase:**
 
@@ -33,7 +33,7 @@ Progress: [████████░░] 80% (8/11 total plans complete across
 | 03-endpoint-wiring | 1 | 10 min | 10 min |
 | 04-payment-config-types | 1 | 2 min | 2 min |
 | 05-access-control-cache-ttl | 2 | 4 min | 2 min |
-| 06-payment-middleware | 2 (of 3) | 10 min | 5 min |
+| 06-payment-middleware | 3 (of 3) | 17 min | 5.7 min |
 
 *Updated after each plan completion*
 
@@ -67,6 +67,9 @@ Recent decisions affecting v1.1:
 - buildPaymentRequired takes raw params (not config struct) for testability and explicitness
 - X-Lightning omitted from 402 until Lightning verification is wired (honored in Phase 6 Plan 2)
 - NUT-18 PaymentRequest: singleUse=true for stateless fresh quote per request — no quote caching
+- cashu-ts v3 exports Wallet/Mint not CashuWallet/CashuMint; rollup d.ts wraps exports requiring @ts-ignore
+- validateTokenStructure exported as pure function for unit-testable proof validation without network calls
+- Overpayment accepted as tip — wallet.receive() consumes all proofs, server discards returned new proofs
 
 ### Pending Todos
 
@@ -80,5 +83,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 06-02-PLAN.md (buildPaymentRequired BUD-07 NUT-18 402 builder)
+Stopped at: Completed 06-03-PLAN.md (Cashu proof validator — proof-validator.ts with NUT-03 swap, spent-proof cache)
 Resume file: None

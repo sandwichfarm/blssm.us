@@ -17,8 +17,8 @@ Requirements for BUD-07 payment middleware, public+payments access mode, and con
 
 - [x] **PAY-04**: Server returns BUD-07 compliant 402 with NUT-18 encoded X-Cashu header when payment required
 - [ ] **PAY-05**: ~~Server returns BOLT-11 formatted X-Lightning header alongside X-Cashu in 402 response~~ — **Deferred**: X-Lightning header intentionally omitted per user decision (06-CONTEXT.md: "Omit X-Lightning header entirely until Lightning is actually wired up"). Superseded by future LN-01/LN-02.
-- [ ] **PAY-06**: Server validates Cashu payment proof by calling mint swap endpoint (double-spend safe)
-- [ ] **PAY-07**: Server returns 400 + X-Reason header when payment proof is invalid, expired, or from untrusted mint
+- [x] **PAY-06**: Server validates Cashu payment proof by calling mint swap endpoint (double-spend safe)
+- [x] **PAY-07**: Server returns 400 + X-Reason header when payment proof is invalid, expired, or from untrusted mint
 - [x] **PAY-08**: 402 responses include Cache-Control: no-store to prevent CDN caching
 
 ### Access Control
@@ -69,8 +69,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PAY-03 | Phase 4 | Complete |
 | PAY-04 | Phase 6 | Complete |
 | PAY-05 | Phase 6 | Deferred (user decision: omit X-Lightning) |
-| PAY-06 | Phase 6 | Pending |
-| PAY-07 | Phase 6 | Pending |
+| PAY-06 | Phase 6 | Complete |
+| PAY-07 | Phase 6 | Complete |
 | PAY-08 | Phase 6 | Complete |
 | ACL-01 | Phase 5 | Complete |
 | ACL-02 | Phase 5 | Complete |
