@@ -1,6 +1,6 @@
 /// <reference lib="deno.ns" />
 import { assertEquals } from "jsr:@std/assert";
-import { checkAccess } from "./access.ts";
+import { checkAccess, _resetAccessCacheForTesting } from "./access.ts";
 import type { StorageClient } from "../storage/client.ts";
 
 // ---------------------------------------------------------------------------
@@ -28,12 +28,14 @@ const PUB_BOTH = "d".repeat(64); // on both whitelist and blacklist
 // ---------------------------------------------------------------------------
 
 Deno.test("ACL-01: public mode, clean pubkey → allowed", async () => {
+  _resetAccessCacheForTesting();
   const storage = makeStorage({ public: true, whitelist: [], blacklist: [] });
   const result = await checkAccess(storage, PUB_CLEAN);
   assertEquals(result.allowed, true);
 });
 
 Deno.test("ACL-02: public mode, blacklisted pubkey → denied, reason contains 'blacklisted'", async () => {
+  _resetAccessCacheForTesting();
   const storage = makeStorage({ public: true, whitelist: [], blacklist: [PUB_BLACKLISTED] });
   const result = await checkAccess(storage, PUB_BLACKLISTED);
   assertEquals(result.allowed, false);
@@ -43,12 +45,14 @@ Deno.test("ACL-02: public mode, blacklisted pubkey → denied, reason contains '
 });
 
 Deno.test("ACL-03: public mode, whitelisted pubkey → allowed (whitelist has no effect)", async () => {
+  _resetAccessCacheForTesting();
   const storage = makeStorage({ public: true, whitelist: [PUB_WHITELISTED], blacklist: [] });
   const result = await checkAccess(storage, PUB_WHITELISTED);
   assertEquals(result.allowed, true);
 });
 
 Deno.test("ACL-02 edge: public mode, pubkey on BOTH lists → denied (blacklist wins)", async () => {
+  _resetAccessCacheForTesting();
   const storage = makeStorage({ public: true, whitelist: [PUB_BOTH], blacklist: [PUB_BOTH] });
   const result = await checkAccess(storage, PUB_BOTH);
   assertEquals(result.allowed, false);
@@ -62,12 +66,14 @@ Deno.test("ACL-02 edge: public mode, pubkey on BOTH lists → denied (blacklist 
 // ---------------------------------------------------------------------------
 
 Deno.test("ACL-04: private mode, whitelisted pubkey → allowed", async () => {
+  _resetAccessCacheForTesting();
   const storage = makeStorage({ public: false, whitelist: [PUB_WHITELISTED], blacklist: [] });
   const result = await checkAccess(storage, PUB_WHITELISTED);
   assertEquals(result.allowed, true);
 });
 
 Deno.test("ACL-05: private mode, clean pubkey → denied, reason is user-facing", async () => {
+  _resetAccessCacheForTesting();
   const storage = makeStorage({ public: false, whitelist: [], blacklist: [] });
   const result = await checkAccess(storage, PUB_CLEAN);
   assertEquals(result.allowed, false);
@@ -77,12 +83,14 @@ Deno.test("ACL-05: private mode, clean pubkey → denied, reason is user-facing"
 });
 
 Deno.test("ACL-06: private mode, blacklisted-only pubkey → denied (blacklist irrelevant, not whitelisted)", async () => {
+  _resetAccessCacheForTesting();
   const storage = makeStorage({ public: false, whitelist: [], blacklist: [PUB_BLACKLISTED] });
   const result = await checkAccess(storage, PUB_BLACKLISTED);
   assertEquals(result.allowed, false);
 });
 
 Deno.test("ACL-04 edge: private mode, pubkey on BOTH lists → allowed (whitelist wins)", async () => {
+  _resetAccessCacheForTesting();
   const storage = makeStorage({ public: false, whitelist: [PUB_BOTH], blacklist: [PUB_BOTH] });
   const result = await checkAccess(storage, PUB_BOTH);
   assertEquals(result.allowed, true);
