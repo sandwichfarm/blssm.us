@@ -82,7 +82,10 @@ Plans:
   2. The HEAD /upload preflight returns 402 for an unlisted pubkey but never consumes a Cashu proof
   3. Mirror, media upload, and delete endpoints all enforce the same payment gate as blob upload
   4. No write handler reads the request body before completing the access and payment checks
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 07-01-PLAN.md — TDD: paymentGate() shared helper + startPriceFeedCron wiring in main.ts
+- [ ] 07-02-PLAN.md — Wire paymentGate into PUT handlers and HEAD preflights, replace all stub 402s
 
 ## Progress
 
