@@ -69,34 +69,34 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CFG-01 | — | Pending |
-| CFG-02 | — | Pending |
-| CFG-03 | — | Pending |
-| CFG-04 | — | Pending |
-| CFG-05 | — | Pending |
-| CFG-06 | — | Pending |
-| CFG-07 | — | Pending |
-| ACL-01 | — | Pending |
-| ACL-02 | — | Pending |
-| ACL-03 | — | Pending |
-| ACL-04 | — | Pending |
-| ACL-05 | — | Pending |
-| ACL-06 | — | Pending |
-| ACL-07 | — | Pending |
-| GATE-01 | — | Pending |
-| GATE-02 | — | Pending |
-| GATE-03 | — | Pending |
-| GATE-04 | — | Pending |
-| GATE-05 | — | Pending |
-| GATE-06 | — | Pending |
-| GATE-07 | — | Pending |
-| GATE-08 | — | Pending |
+| CFG-01 | Phase 1 | Pending |
+| CFG-02 | Phase 1 | Pending |
+| CFG-03 | Phase 1 | Pending |
+| CFG-04 | Phase 1 | Pending |
+| CFG-05 | Phase 1 | Pending |
+| CFG-06 | Phase 1 | Pending |
+| CFG-07 | Phase 1 | Pending |
+| ACL-01 | Phase 2 | Pending |
+| ACL-02 | Phase 2 | Pending |
+| ACL-03 | Phase 2 | Pending |
+| ACL-04 | Phase 2 | Pending |
+| ACL-05 | Phase 2 | Pending |
+| ACL-06 | Phase 2 | Pending |
+| ACL-07 | Phase 2 | Pending |
+| GATE-01 | Phase 3 | Pending |
+| GATE-02 | Phase 3 | Pending |
+| GATE-03 | Phase 3 | Pending |
+| GATE-04 | Phase 3 | Pending |
+| GATE-05 | Phase 3 | Pending |
+| GATE-06 | Phase 3 | Pending |
+| GATE-07 | Phase 3 | Pending |
+| GATE-08 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 22 total
-- Mapped to phases: 0
-- Unmapped: 22 ⚠️
+- Mapped to phases: 22
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-24*
-*Last updated: 2026-02-24 after initial definition*
+*Last updated: 2026-02-24 after roadmap creation*
