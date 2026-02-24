@@ -4,6 +4,9 @@ import { validateAuth } from "../auth/nostr.ts";
 import { isBlocked } from "../storage/metadata.ts";
 import { errorResponse, isValidSha256 } from "../util.ts";
 import { checkAccess } from "../middleware/access.ts";
+import { loadPaymentConfig, paymentsEnabled } from "../middleware/payment-config.ts";
+import { loadPricingConfig, readBtcUsdPrice } from "../middleware/price-feed.ts";
+import { buildPaymentRequired } from "../middleware/payments.ts";
 
 /**
  * BUD-06: HEAD /upload — Upload pre-flight check
@@ -41,17 +44,33 @@ export async function handleUploadCheck(
       const access = await checkAccess(storage, auth.pubkey, "upload");
       if (!access.allowed) {
         if (access.requiresPayment) {
-          // Minimal 402 stub — Phase 6 replaces with full BUD-07 headers
-          // HEAD preflight MUST NOT consume payment proof (just signal payment needed)
+          // HEAD preflights: always return 402, never validate X-Cashu
+          // Even if client sends X-Cashu, ignore it — HEAD never consumes proofs
+          const { config: payConfig } = await loadPaymentConfig(storage);
+          if (paymentsEnabled(payConfig)) {
+            const { pricing } = await loadPricingConfig("config/payment.toml");
+            const btcUsd = await readBtcUsdPrice("/tmp/btc-price.json");
+            if (btcUsd !== null) {
+              // Use X-Content-Length for file size (BUD-06 convention for HEAD preflight)
+              const sizeStr = request.headers.get("X-Content-Length");
+              const effectiveSize = sizeStr ? parseInt(sizeStr, 10) : 0;
+              const finalSize = isNaN(effectiveSize) ? 0 : effectiveSize;
+              // 0 bytes → computeSatPrice returns 1 sat (floor), minimum discoverable price
+              const priceResp = buildPaymentRequired(finalSize, payConfig.mints.map(m => m.url), btcUsd, pricing);
+              // HEAD response: copy headers, null body (HTTP HEAD spec)
+              return new Response(null, {
+                status: 402,
+                headers: priceResp.headers,
+              });
+            }
+          }
+          // Payments disabled or price unavailable: fall through (fail open)
+        } else {
           return new Response(null, {
-            status: 402,
-            headers: { "X-Reason": "payment_required", "Cache-Control": "no-store" },
+            status: 403,
+            headers: { "X-Reason": access.reason },
           });
         }
-        return new Response(null, {
-          status: 403,
-          headers: { "X-Reason": access.reason },
-        });
       }
     }
   }
