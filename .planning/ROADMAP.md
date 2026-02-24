@@ -56,7 +56,9 @@ Plans:
   3. GET and HEAD blob retrieval endpoints remain public — no pubkey check occurs
   4. A denied request returns 403 with a JSON error body, not 401
   5. Access check runs after auth validation and before any request body read on all gated endpoints
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 03-01-PLAN.md — Wire checkAccess() into all gated write handlers and verify non-gated endpoints untouched
 
 ## Progress
 
@@ -67,4 +69,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Config Foundation | 1/1 | Complete    | 2026-02-24 |
 | 2. Access Logic | 1/1 | Complete   | 2026-02-24 |
-| 3. Endpoint Wiring | 0/TBD | Not started | - |
+| 3. Endpoint Wiring | 0/1 | Not started | - |
