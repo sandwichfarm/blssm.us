@@ -33,19 +33,28 @@ The server operator can control exactly who is allowed to publish blobs, with cl
 
 ### Active
 
-- [ ] Payment verification wiring (BUD-07 stub → real Lightning verification)
-- [ ] Public+payments mode: whitelist = free pass, blacklist = banned, others pay
-- [ ] Admin API for managing pubkey lists (no config file editing)
-- [ ] Immediate config reloading (bypass TTL cache)
+- [ ] BUD-07 payment middleware with pluggable verification (402 + X-Cashu/X-Lightning headers)
+- [ ] Public+payments mode: whitelist = free pass, blacklist = banned, others → 402
+- [ ] Configurable cache TTL (including TTL=0 for always-fresh reads)
 
 ### Out of Scope
 
 - Read-side access control — breaks CDN caching, conflicts with Blossom public-read philosophy
 - Admin UI — operators are technical enough to edit JSON or use API
+- Admin API for managing pubkey lists — config file works, defer to future milestone
 - Per-endpoint granularity — same rules for all gated write endpoints; unnecessary complexity
 - Invite codes — over-engineering for current needs
 - NIP-05 / Web of Trust verification — adds external dependencies
 - npub format support in config — protocol uses hex; accepting npub creates silent failure risk
+
+## Current Milestone: v1.1 Payments & Cache
+
+**Goal:** Wire BUD-07 payment verification into the access control flow and make config caching configurable.
+
+**Target features:**
+- BUD-07 compliant payment middleware (402 response, X-Cashu/X-Lightning headers, payment proof validation)
+- Public+payments access mode (whitelist = free, blacklist = banned, unlisted = pay)
+- Configurable cache TTL with TTL=0 option for instant config changes
 
 ## Context
 
@@ -79,4 +88,4 @@ The server operator can control exactly who is allowed to publish blobs, with cl
 | Access gate inside if(authHeader) for preflight | Unauthenticated preflight has no pubkey to check | ✓ Good — avoids type error and false denial |
 
 ---
-*Last updated: 2026-02-24 after v1.0 milestone*
+*Last updated: 2026-02-24 after v1.1 milestone start*

@@ -5,15 +5,15 @@
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** Server operator can control exactly who is allowed to publish blobs
-**Current focus:** Planning next milestone
+**Current focus:** v1.1 Payments & Cache
 
 ## Current Position
 
-Milestone: v1.0 Access Control — SHIPPED 2026-02-24
-Status: Complete
-Last activity: 2026-02-24 — Milestone v1.0 archived
-
-Progress: [██████████] 100%
+Milestone: v1.1 Payments & Cache
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-24 — Milestone v1.1 started
 
 ## Performance Metrics
 
@@ -44,10 +44,11 @@ None.
 
 ### Blockers/Concerns
 
-- Three-mode payment composition (public+payment mode): `verifyLightningPayment` always returns false. Public+payment mode will block everyone not on whitelist until payments are wired.
+- Payment architecture (which backends: Cashu mints, Lightning nodes) not yet decided — design pluggable verification interface so concrete implementations can be added later.
+- `verifyLightningPayment` in existing payments.ts always returns false — this is the stub to replace.
 
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Milestone v1.0 complete and archived
+Stopped at: Defining v1.1 requirements
 Resume file: None
