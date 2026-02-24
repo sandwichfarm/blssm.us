@@ -91,8 +91,11 @@ export type AccessResult =
   | { allowed: true }
   | { allowed: false; reason: string; requiresPayment?: true };
 
-/** Load and cache access config — 60s TTL, same pattern as isBlocked() (CFG-01, CFG-02) */
-export async function loadAccessConfig(storage: StorageClient): Promise<AccessCache> {
+/** Load and cache access config — 60s TTL by default, same pattern as isBlocked() (CFG-01, CFG-02) */
+export async function loadAccessConfig(
+  storage: StorageClient,
+  ttlMs: number = ACCESS_CACHE_TTL_MS,
+): Promise<AccessCache> {
   const now = Date.now();
   if (accessCache && now < accessCache.expires) {
     return accessCache;
@@ -104,7 +107,7 @@ export async function loadAccessConfig(storage: StorageClient): Promise<AccessCa
     config,
     whitelist: new Set(config.whitelist),
     blacklist: new Set(config.blacklist),
-    expires: now + ACCESS_CACHE_TTL_MS,
+    expires: now + ttlMs,
   };
   return accessCache;
 }
@@ -116,14 +119,16 @@ export async function loadAccessConfig(storage: StorageClient): Promise<AccessCa
  * @param storage - StorageClient used to load access config via loadAccessConfig()
  * @param pubkey - hex-64 pubkey to evaluate; obtained from validateAuth() result
  * @param action - The action being requested (upload, mirror, or delete)
+ * @param ttlMs - Optional TTL override for cache (defaults to ACCESS_CACHE_TTL_MS)
  * @returns AccessResult — { allowed: true } or { allowed: false, reason, requiresPayment? }
  */
 export async function checkAccess(
   storage: StorageClient,
   pubkey: string,
   action: AccessAction,
+  ttlMs?: number,
 ): Promise<AccessResult> {
-  const cache = await loadAccessConfig(storage);
+  const cache = await loadAccessConfig(storage, ttlMs);
 
   if (cache.config.public) {
     // Blacklist always takes priority in all public modes (ACL-03)

@@ -123,10 +123,13 @@ export function paymentsEnabled(config: PaymentConfig): boolean {
 }
 
 /**
- * Load and cache payment config from config/payment.json — 60s TTL.
+ * Load and cache payment config from config/payment.json — 60s TTL by default.
  * Missing file → null → normalizePaymentConfig returns payments-disabled default.
  */
-export async function loadPaymentConfig(storage: StorageClient): Promise<PaymentCache> {
+export async function loadPaymentConfig(
+  storage: StorageClient,
+  ttlMs: number = PAYMENT_CACHE_TTL_MS,
+): Promise<PaymentCache> {
   const now = Date.now();
   if (paymentCache && now < paymentCache.expires) {
     return paymentCache;
@@ -135,7 +138,7 @@ export async function loadPaymentConfig(storage: StorageClient): Promise<Payment
   const config = normalizePaymentConfig(raw);
   paymentCache = {
     config,
-    expires: now + PAYMENT_CACHE_TTL_MS,
+    expires: now + ttlMs,
   };
   return paymentCache;
 }
