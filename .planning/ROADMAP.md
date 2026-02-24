@@ -60,9 +60,9 @@ Plans:
 ### Phase 6: Payment Middleware
 **Goal**: The payment middleware issues BUD-07 compliant 402 responses and validates Cashu proofs against the issuing mint
 **Depends on**: Phase 5
-**Requirements**: PAY-04, PAY-05, PAY-06, PAY-07, PAY-08
+**Requirements**: PAY-04, PAY-06, PAY-07, PAY-08 (PAY-05 deferred per user decision)
 **Success Criteria** (what must be TRUE):
-  1. A 402 response includes a valid NUT-18 encoded X-Cashu header and a BOLT-11 formatted X-Lightning header (stub)
+  1. A 402 response includes a valid NUT-18 encoded X-Cashu header (X-Lightning intentionally omitted per user decision)
   2. A 402 response always includes Cache-Control: no-store so the CDN never caches it
   3. A client presenting a valid Cashu proof from an accepted mint passes verification and the upload proceeds
   4. A client presenting a Cashu token from an untrusted mint receives 400 + X-Reason header
