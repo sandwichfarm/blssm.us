@@ -13,7 +13,7 @@ This milestone adds pubkey-based publish access control to an existing BUD-compl
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Config Foundation** - Load and cache `config/access.json` from Bunny Storage with validation (completed 2026-02-24)
-- [ ] **Phase 2: Access Logic** - Implement `checkAccess()` decision function covering all mode/list combinations
+- [x] **Phase 2: Access Logic** - Implement `checkAccess()` decision function covering all mode/list combinations (completed 2026-02-24)
 - [ ] **Phase 3: Endpoint Wiring** - Integrate access control into all gated write handlers and verify end-to-end
 
 ## Phase Details
@@ -42,7 +42,7 @@ Plans:
   3. In public mode, whitelist membership has no effect on the outcome
   4. In private mode, only a whitelisted pubkey receives an allow result — all others are denied
   5. In private mode, blacklist membership has no effect on the outcome
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
 - [ ] 02-01-PLAN.md — checkAccess() TDD: decision function + AccessResult type covering all mode/list combinations
 
@@ -66,5 +66,5 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Config Foundation | 1/1 | Complete    | 2026-02-24 |
-| 2. Access Logic | 0/TBD | Not started | - |
+| 2. Access Logic | 1/1 | Complete   | 2026-02-24 |
 | 3. Endpoint Wiring | 0/TBD | Not started | - |

@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** Server operator can control exactly who is allowed to publish blobs
-**Current focus:** Phase 1 — Config Foundation
+**Current focus:** Phase 2 — Access Logic
 
 ## Current Position
 
-Phase: 1 of 3 (Config Foundation)
+Phase: 2 of 3 (Access Logic)
 Plan: 1 of TBD in current phase
 Status: In progress
-Last activity: 2026-02-24 — Plan 01-01 complete
+Last activity: 2026-02-24 — Plan 02-01 complete
 
-Progress: [█░░░░░░░░░] 10%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
@@ -28,9 +28,10 @@ Progress: [█░░░░░░░░░] 10%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-config-foundation | 1 | 8 min | 8 min |
+| 02-access-logic | 1 | 2 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: 8 min
+- Last 5 plans: 8 min, 2 min
 - Trend: -
 
 *Updated after each plan completion*
@@ -48,6 +49,8 @@ Recent decisions affecting current work:
 - Warn-and-skip for invalid pubkeys: invalid entries logged and excluded, valid entries preserved (not all-or-nothing fallback)
 - Default to public mode on missing/malformed config/access.json: safe open default
 - Set<string> in AccessCache (not string[]): O(1) membership lookup for Phase 2 checkAccess()
+- [Phase 02-access-logic]: AccessResult exported from access.ts (not types.ts): co-located with checkAccess(); promotes to types.ts only if multiple modules need the type independently
+- [Phase 02-access-logic]: Cache reset helper _resetAccessCacheForTesting() exported for test isolation of module-level accessCache singleton
 
 ### Pending Todos
 
@@ -60,5 +63,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 01-01-PLAN.md (AccessConfig type + loadAccessConfig loader)
+Stopped at: Completed 02-01-PLAN.md (checkAccess() decision function + AccessResult type)
 Resume file: None

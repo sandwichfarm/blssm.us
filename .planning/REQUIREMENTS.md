@@ -19,13 +19,13 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Access Logic
 
-- [ ] **ACL-01**: In public mode, any authenticated pubkey can publish unless blacklisted
-- [ ] **ACL-02**: In public mode, blacklisted pubkeys receive 403 Forbidden
-- [ ] **ACL-03**: In public mode, whitelist is ignored (no effect)
-- [ ] **ACL-04**: In private mode, only whitelisted pubkeys can publish
-- [ ] **ACL-05**: In private mode, non-whitelisted pubkeys receive 403 Forbidden
-- [ ] **ACL-06**: In private mode, blacklist is ignored (no effect)
-- [ ] **ACL-07**: Access check runs after auth validation but before request body is read
+- [x] **ACL-01**: In public mode, any authenticated pubkey can publish unless blacklisted
+- [x] **ACL-02**: In public mode, blacklisted pubkeys receive 403 Forbidden
+- [x] **ACL-03**: In public mode, whitelist is ignored (no effect)
+- [x] **ACL-04**: In private mode, only whitelisted pubkeys can publish
+- [x] **ACL-05**: In private mode, non-whitelisted pubkeys receive 403 Forbidden
+- [x] **ACL-06**: In private mode, blacklist is ignored (no effect)
+- [x] **ACL-07**: Access check runs after auth validation but before request body is read
 
 ### Endpoint Gating
 
@@ -76,13 +76,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CFG-05 | Phase 1 | Complete |
 | CFG-06 | Phase 1 | Complete |
 | CFG-07 | Phase 1 | Complete |
-| ACL-01 | Phase 2 | Pending |
-| ACL-02 | Phase 2 | Pending |
-| ACL-03 | Phase 2 | Pending |
-| ACL-04 | Phase 2 | Pending |
-| ACL-05 | Phase 2 | Pending |
-| ACL-06 | Phase 2 | Pending |
-| ACL-07 | Phase 2 | Pending |
+| ACL-01 | Phase 2 | Complete |
+| ACL-02 | Phase 2 | Complete |
+| ACL-03 | Phase 2 | Complete |
+| ACL-04 | Phase 2 | Complete |
+| ACL-05 | Phase 2 | Complete |
+| ACL-06 | Phase 2 | Complete |
+| ACL-07 | Phase 2 | Complete |
 | GATE-01 | Phase 3 | Pending |
 | GATE-02 | Phase 3 | Pending |
 | GATE-03 | Phase 3 | Pending |
