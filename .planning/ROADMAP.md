@@ -28,7 +28,9 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. When `access.json` is absent, server defaults to public mode with empty whitelist and blacklist (no 500, no lockout)
   4. Any pubkey entry that is not a 64-character lowercase hex string is logged as a warning and skipped — it does not silently pass or hard-fail
   5. Config includes `public` boolean, `whitelist` array, and `blacklist` array with correct types
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 01-01-PLAN.md — AccessConfig type + loadAccessConfig() with TTL cache and validation
 
 ### Phase 2: Access Logic
 **Goal**: A pure `checkAccess()` function correctly determines allow/deny for every mode and pubkey combination
@@ -61,6 +63,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Config Foundation | 0/TBD | Not started | - |
+| 1. Config Foundation | 0/1 | Not started | - |
 | 2. Access Logic | 0/TBD | Not started | - |
 | 3. Endpoint Wiring | 0/TBD | Not started | - |
