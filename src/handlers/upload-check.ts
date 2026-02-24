@@ -38,8 +38,16 @@ export async function handleUploadCheck(
     // Access control — GATE-04/GATE-05: check after auth succeeds
     // HEAD responses have no body — use X-Reason header (consistent with handler pattern)
     if (auth.pubkey) {
-      const access = await checkAccess(storage, auth.pubkey);
+      const access = await checkAccess(storage, auth.pubkey, "upload");
       if (!access.allowed) {
+        if (access.requiresPayment) {
+          // Minimal 402 stub — Phase 6 replaces with full BUD-07 headers
+          // HEAD preflight MUST NOT consume payment proof (just signal payment needed)
+          return new Response(null, {
+            status: 402,
+            headers: { "X-Reason": "payment_required", "Cache-Control": "no-store" },
+          });
+        }
         return new Response(null, {
           status: 403,
           headers: { "X-Reason": access.reason },

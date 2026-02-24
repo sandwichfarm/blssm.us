@@ -27,8 +27,15 @@ export async function handleBlobUpload(
   }
 
   // Access control — GATE-01: runs after auth, before body read
-  const access = await checkAccess(storage, auth.pubkey);
+  const access = await checkAccess(storage, auth.pubkey, "upload");
   if (!access.allowed) {
+    if (access.requiresPayment) {
+      // Minimal 402 stub — Phase 6 replaces with full BUD-07 format (X-Cashu, X-Lightning headers)
+      return new Response(JSON.stringify({ message: "payment_required" }), {
+        status: 402,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    }
     return errorResponse(access.reason, 403);
   }
 
