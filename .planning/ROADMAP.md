@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Config Foundation** - Load and cache `config/access.json` from Bunny Storage with validation (completed 2026-02-24)
 - [x] **Phase 2: Access Logic** - Implement `checkAccess()` decision function covering all mode/list combinations (completed 2026-02-24)
-- [ ] **Phase 3: Endpoint Wiring** - Integrate access control into all gated write handlers and verify end-to-end
+- [x] **Phase 3: Endpoint Wiring** - Integrate access control into all gated write handlers and verify end-to-end (completed 2026-02-24)
 
 ## Phase Details
 
@@ -58,7 +58,7 @@ Plans:
   5. Access check runs after auth validation and before any request body read on all gated endpoints
 **Plans:** 1 plan
 Plans:
-- [ ] 03-01-PLAN.md — Wire checkAccess() into all gated write handlers and verify non-gated endpoints untouched
+- [x] 03-01-PLAN.md — Wire checkAccess() into all gated write handlers and verify non-gated endpoints untouched
 
 ## Progress
 
@@ -69,4 +69,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Config Foundation | 1/1 | Complete    | 2026-02-24 |
 | 2. Access Logic | 1/1 | Complete   | 2026-02-24 |
-| 3. Endpoint Wiring | 0/1 | Not started | - |
+| 3. Endpoint Wiring | 1/1 | Complete | 2026-02-24 |

@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** Server operator can control exactly who is allowed to publish blobs
-**Current focus:** Phase 2 — Access Logic
+**Current focus:** Phase 3 — Endpoint Wiring
 
 ## Current Position
 
-Phase: 2 of 3 (Access Logic)
-Plan: 1 of TBD in current phase
-Status: In progress
-Last activity: 2026-02-24 — Plan 02-01 complete
+Phase: 3 of 3 (Endpoint Wiring)
+Plan: 1 of 1 in current phase
+Status: Complete
+Last activity: 2026-02-24 — Plan 03-01 complete
 
-Progress: [██░░░░░░░░] 20%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 8 min
-- Total execution time: 0.13 hours
+- Total plans completed: 3
+- Average duration: 4 min
+- Total execution time: 0.20 hours
 
 **By Phase:**
 
@@ -29,9 +29,10 @@ Progress: [██░░░░░░░░] 20%
 |-------|-------|-------|----------|
 | 01-config-foundation | 1 | 8 min | 8 min |
 | 02-access-logic | 1 | 2 min | 2 min |
+| 03-endpoint-wiring | 1 | 10 min | 10 min |
 
 **Recent Trend:**
-- Last 5 plans: 8 min, 2 min
+- Last 5 plans: 8 min, 2 min, 10 min
 - Trend: -
 
 *Updated after each plan completion*
@@ -51,6 +52,8 @@ Recent decisions affecting current work:
 - Set<string> in AccessCache (not string[]): O(1) membership lookup for Phase 2 checkAccess()
 - [Phase 02-access-logic]: AccessResult exported from access.ts (not types.ts): co-located with checkAccess(); promotes to types.ts only if multiple modules need the type independently
 - [Phase 02-access-logic]: Cache reset helper _resetAccessCacheForTesting() exported for test isolation of module-level accessCache singleton
+- [Phase 03-endpoint-wiring]: PUT handlers use errorResponse(reason, 403) JSON body; HEAD upload-check uses X-Reason header (no body per HTTP spec)
+- [Phase 03-endpoint-wiring]: upload-check access gate inside if(authHeader) block — unauthenticated preflight requests have no pubkey, bypass access check
 
 ### Pending Todos
 
@@ -63,5 +66,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 02-01-PLAN.md (checkAccess() decision function + AccessResult type)
+Stopped at: Completed 03-01-PLAN.md (checkAccess() wired into all 4 gated write handlers)
 Resume file: None

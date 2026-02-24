@@ -29,14 +29,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Endpoint Gating
 
-- [ ] **GATE-01**: Access control gates PUT /upload (BUD-02)
-- [ ] **GATE-02**: Access control gates PUT /mirror (BUD-04)
-- [ ] **GATE-03**: Access control gates PUT /media (BUD-05)
-- [ ] **GATE-04**: Access control gates HEAD /upload preflight (BUD-06)
-- [ ] **GATE-05**: Access control gates HEAD /media preflight
-- [ ] **GATE-06**: PUT /report is NOT gated by access control
-- [ ] **GATE-07**: All GET/HEAD blob retrieval remains public (no access control)
-- [ ] **GATE-08**: Denied requests return 403 with JSON error body, not 401
+- [x] **GATE-01**: Access control gates PUT /upload (BUD-02)
+- [x] **GATE-02**: Access control gates PUT /mirror (BUD-04)
+- [x] **GATE-03**: Access control gates PUT /media (BUD-05)
+- [x] **GATE-04**: Access control gates HEAD /upload preflight (BUD-06)
+- [x] **GATE-05**: Access control gates HEAD /media preflight
+- [x] **GATE-06**: PUT /report is NOT gated by access control
+- [x] **GATE-07**: All GET/HEAD blob retrieval remains public (no access control)
+- [x] **GATE-08**: Denied requests return 403 with JSON error body, not 401
 
 ## v2 Requirements
 
@@ -83,14 +83,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ACL-05 | Phase 2 | Complete |
 | ACL-06 | Phase 2 | Complete |
 | ACL-07 | Phase 2 | Complete |
-| GATE-01 | Phase 3 | Pending |
-| GATE-02 | Phase 3 | Pending |
-| GATE-03 | Phase 3 | Pending |
-| GATE-04 | Phase 3 | Pending |
-| GATE-05 | Phase 3 | Pending |
-| GATE-06 | Phase 3 | Pending |
-| GATE-07 | Phase 3 | Pending |
-| GATE-08 | Phase 3 | Pending |
+| GATE-01 | Phase 3 | Complete |
+| GATE-02 | Phase 3 | Complete |
+| GATE-03 | Phase 3 | Complete |
+| GATE-04 | Phase 3 | Complete |
+| GATE-05 | Phase 3 | Complete |
+| GATE-06 | Phase 3 | Complete |
+| GATE-07 | Phase 3 | Complete |
+| GATE-08 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 22 total
@@ -99,4 +99,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-02-24*
-*Last updated: 2026-02-24 after roadmap creation*
+*Last updated: 2026-02-24 after Phase 3 (Endpoint Wiring) completion*
