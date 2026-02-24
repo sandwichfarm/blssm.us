@@ -64,27 +64,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PAY-01 | — | Pending |
-| PAY-02 | — | Pending |
-| PAY-03 | — | Pending |
-| PAY-04 | — | Pending |
-| PAY-05 | — | Pending |
-| PAY-06 | — | Pending |
-| PAY-07 | — | Pending |
-| PAY-08 | — | Pending |
-| ACL-01 | — | Pending |
-| ACL-02 | — | Pending |
-| ACL-03 | — | Pending |
-| ACL-04 | — | Pending |
-| ACL-05 | — | Pending |
-| CACHE-01 | — | Pending |
-| CACHE-02 | — | Pending |
+| PAY-01 | Phase 4 | Pending |
+| PAY-02 | Phase 4 | Pending |
+| PAY-03 | Phase 4 | Pending |
+| PAY-04 | Phase 6 | Pending |
+| PAY-05 | Phase 6 | Pending |
+| PAY-06 | Phase 6 | Pending |
+| PAY-07 | Phase 6 | Pending |
+| PAY-08 | Phase 6 | Pending |
+| ACL-01 | Phase 5 | Pending |
+| ACL-02 | Phase 5 | Pending |
+| ACL-03 | Phase 5 | Pending |
+| ACL-04 | Phase 5 | Pending |
+| ACL-05 | Phase 5 | Pending |
+| CACHE-01 | Phase 4 | Pending |
+| CACHE-02 | Phase 4 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15 ⚠️
+- Mapped to phases: 15
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-24*
-*Last updated: 2026-02-24 after initial definition*
+*Last updated: 2026-02-24 after roadmap creation*
