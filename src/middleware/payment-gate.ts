@@ -2,6 +2,7 @@
 import type { StorageClient } from "../storage/client.ts";
 import type { ValidationResult } from "../types.ts";
 import { loadPaymentConfig, paymentsEnabled } from "./payment-config.ts";
+import { loadCacheConfig } from "./cache-config.ts";
 import { loadPricingConfig, readBtcUsdPrice, computeSatPrice } from "./price-feed.ts";
 import { buildPaymentRequired } from "./payments.ts";
 import { validateCashuPayment, buildPaymentError } from "./proof-validator.ts";
@@ -52,15 +53,18 @@ export async function paymentGate(
   const pricingTomlPath = deps?.pricingTomlPath ?? PRICING_TOML_PATH;
   const validate = deps?.validatePayment ?? validateCashuPayment;
 
-  // Step 1: Load payment config
-  const { config } = await loadPaymentConfig(storage);
+  // Step 1: Load cache config for operator-configured TTL values
+  const cacheConfig = await loadCacheConfig(storage);
 
-  // Step 2: Check if payments are enabled — if not, pass through
+  // Step 2: Load payment config
+  const { config } = await loadPaymentConfig(storage, cacheConfig.paymentTtl);
+
+  // Step 3: Check if payments are enabled — if not, pass through
   if (!paymentsEnabled(config)) {
     return null;
   }
 
-  // Step 3: Load pricing config (TOML — defaults used on missing/invalid file)
+  // Step 4: Load pricing config (TOML — defaults used on missing/invalid file)
   const { pricing } = await loadPricingConfig(pricingTomlPath);
 
   // Step 4: Read BTC/USD price from cron-written file
