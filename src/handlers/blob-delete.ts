@@ -3,6 +3,7 @@ import type { StorageClient } from "../storage/client.ts";
 import { validateAuth } from "../auth/nostr.ts";
 import { getMeta, removeOwner, removeFromIndex } from "../storage/metadata.ts";
 import { errorResponse, isValidSha256 } from "../util.ts";
+import { checkAccess } from "../middleware/access.ts";
 
 /**
  * BUD-02: DELETE /<sha256> — Delete a blob
@@ -31,6 +32,12 @@ export async function handleBlobDelete(
   });
   if (!auth.authorized || !auth.pubkey) {
     return errorResponse(auth.error || "Unauthorized", 401);
+  }
+
+  // Access control — GATE-03: check after auth, before storage ops
+  const access = await checkAccess(storage, auth.pubkey, "delete");
+  if (!access.allowed) {
+    return errorResponse(access.reason, 403);
   }
 
   // Check blob exists

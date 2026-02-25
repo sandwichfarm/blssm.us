@@ -109,10 +109,10 @@ Deno.test("buildPaymentError: returns 503 with Retry-After for mint_unreachable"
   assertEquals(response.headers.get("Cache-Control"), "no-store");
 });
 
-Deno.test("buildPaymentError: missing reason defaults to 'payment_error'", () => {
-  const response = buildPaymentError({ valid: false } as { valid: false; reason?: string });
+Deno.test("buildPaymentError: reason is used as X-Reason header", () => {
+  const response = buildPaymentError({ valid: false, reason: "proof_invalid_or_spent" });
   assertEquals(response.status, 400);
-  assertEquals(response.headers.get("X-Reason"), "payment_error");
+  assertEquals(response.headers.get("X-Reason"), "proof_invalid_or_spent");
 });
 
 // ---------------------------------------------------------------------------

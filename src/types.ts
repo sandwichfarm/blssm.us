@@ -142,14 +142,16 @@ export interface PricingConfig {
   slippage_premium_pct: number;
 }
 
-/** Result of Cashu proof validation */
-export interface ValidationResult {
-  valid: boolean;
-  /** Error reason for X-Reason header (only set when valid=false) */
-  reason?: string;
-  /** HTTP status override (400 default, 503 for mint unreachable) */
-  status?: number;
-}
+/** Result of Cashu proof validation — discriminated union on `valid` */
+export type ValidationResult =
+  | { valid: true }
+  | {
+      valid: false;
+      /** Error reason for X-Reason header */
+      reason: string;
+      /** HTTP status override (400 default, 503 for mint unreachable) */
+      status?: number;
+    };
 
 /**
  * Cache TTL configuration from config/cache.json.
