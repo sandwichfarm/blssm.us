@@ -51,13 +51,13 @@ export interface BlockedConfig {
 
 /** Access control configuration from config/access.json */
 export interface AccessConfig {
-  /** true = public mode (anyone can publish unless blacklisted)
-   *  false = private mode (only whitelisted pubkeys can publish) */
+  /** true = public mode (anyone can publish unless on blocklist)
+   *  false = private mode (only allowlisted pubkeys can publish) */
   public: boolean;
   /** Hex pubkeys always allowed (in public+payments mode, also skip payment) */
-  whitelist: string[];
+  allowlist: string[];
   /** Hex pubkeys always denied (in public mode; ignored in private mode) */
-  blacklist: string[];
+  blocklist: string[];
   /** true = public+payments mode (unlisted pubkeys routed to payment). Only meaningful when public=true. Default: false */
   payments?: boolean;
 }

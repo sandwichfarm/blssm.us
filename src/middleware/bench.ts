@@ -1,6 +1,6 @@
 /// <reference lib="deno.ns" />
 /**
- * CPU-time benchmarks for middleware introduced on feature/whitelist-blacklist.
+ * CPU-time benchmarks for middleware introduced on feature/allowlist-blocklist.
  *
  * Run: deno bench -A src/middleware/bench.ts
  *
@@ -27,10 +27,10 @@ import { buildPaymentRequired } from "./payments.ts";
 const VALID_ACCESS_RAW = {
   public: true,
   payments: true,
-  whitelist: Array.from({ length: 100 }, (_, i) =>
+  allowlist: Array.from({ length: 100 }, (_, i) =>
     i.toString(16).padStart(64, "0")
   ),
-  blacklist: Array.from({ length: 50 }, (_, i) =>
+  blocklist: Array.from({ length: 50 }, (_, i) =>
     (i + 1000).toString(16).padStart(64, "0")
   ),
 };

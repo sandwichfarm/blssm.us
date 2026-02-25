@@ -21,7 +21,7 @@ function makeStorage(configJson: unknown): StorageClient {
 const PUB_CLEAN = "a".repeat(64);
 const PUB_BLACKLISTED = "b".repeat(64);
 const PUB_WHITELISTED = "c".repeat(64);
-const PUB_BOTH = "d".repeat(64); // on both whitelist and blacklist
+const PUB_BOTH = "d".repeat(64); // on both allowlist and blocklist
 const PUB_UNLISTED = "e".repeat(64); // not on any list
 
 // ---------------------------------------------------------------------------
@@ -30,35 +30,35 @@ const PUB_UNLISTED = "e".repeat(64); // not on any list
 
 Deno.test("ACL-05 compat: public mode, clean pubkey, action=upload → allowed", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, whitelist: [], blacklist: [] });
+  const storage = makeStorage({ public: true, allowlist: [], blocklist: [] });
   const result = await checkAccess(storage, PUB_CLEAN, "upload");
   assertEquals(result.allowed, true);
 });
 
-Deno.test("ACL-05 compat: public mode, blacklisted pubkey, action=upload → denied, reason contains 'blacklisted'", async () => {
+Deno.test("ACL-05 compat: public mode, blocked pubkey, action=upload → denied, reason contains 'blocked'", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, whitelist: [], blacklist: [PUB_BLACKLISTED] });
+  const storage = makeStorage({ public: true, allowlist: [], blocklist: [PUB_BLACKLISTED] });
   const result = await checkAccess(storage, PUB_BLACKLISTED, "upload");
   assertEquals(result.allowed, false);
   if (!result.allowed) {
-    assertEquals(result.reason.includes("blacklisted"), true);
+    assertEquals(result.reason.includes("blocked"), true);
   }
 });
 
-Deno.test("ACL-05 compat: public mode, whitelisted pubkey, action=upload → allowed (whitelist is no-op in plain public)", async () => {
+Deno.test("ACL-05 compat: public mode, allowlisted pubkey, action=upload → allowed (allowlist is no-op in plain public)", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, whitelist: [PUB_WHITELISTED], blacklist: [] });
+  const storage = makeStorage({ public: true, allowlist: [PUB_WHITELISTED], blocklist: [] });
   const result = await checkAccess(storage, PUB_WHITELISTED, "upload");
   assertEquals(result.allowed, true);
 });
 
-Deno.test("ACL-05 compat: public mode, pubkey on both lists, action=upload → denied (blacklist wins)", async () => {
+Deno.test("ACL-05 compat: public mode, pubkey on both lists, action=upload → denied (blocklist wins)", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, whitelist: [PUB_BOTH], blacklist: [PUB_BOTH] });
+  const storage = makeStorage({ public: true, allowlist: [PUB_BOTH], blocklist: [PUB_BOTH] });
   const result = await checkAccess(storage, PUB_BOTH, "upload");
   assertEquals(result.allowed, false);
   if (!result.allowed) {
-    assertEquals(result.reason.includes("blacklisted"), true);
+    assertEquals(result.reason.includes("blocked"), true);
   }
 });
 
@@ -66,16 +66,16 @@ Deno.test("ACL-05 compat: public mode, pubkey on both lists, action=upload → d
 // Private mode tests — ACL-05 backward compat (updated signature)
 // ---------------------------------------------------------------------------
 
-Deno.test("ACL-05 compat: private mode, whitelisted pubkey, action=upload → allowed", async () => {
+Deno.test("ACL-05 compat: private mode, allowlisted pubkey, action=upload → allowed", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: false, whitelist: [PUB_WHITELISTED], blacklist: [] });
+  const storage = makeStorage({ public: false, allowlist: [PUB_WHITELISTED], blocklist: [] });
   const result = await checkAccess(storage, PUB_WHITELISTED, "upload");
   assertEquals(result.allowed, true);
 });
 
 Deno.test("ACL-05 compat: private mode, clean pubkey, action=upload → denied, user-facing reason", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: false, whitelist: [], blacklist: [] });
+  const storage = makeStorage({ public: false, allowlist: [], blocklist: [] });
   const result = await checkAccess(storage, PUB_CLEAN, "upload");
   assertEquals(result.allowed, false);
   if (!result.allowed) {
@@ -83,9 +83,9 @@ Deno.test("ACL-05 compat: private mode, clean pubkey, action=upload → denied, 
   }
 });
 
-Deno.test("ACL-05 compat: private mode, blacklisted-only pubkey, action=upload → denied", async () => {
+Deno.test("ACL-05 compat: private mode, blocklisted-only pubkey, action=upload → denied", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: false, whitelist: [], blacklist: [PUB_BLACKLISTED] });
+  const storage = makeStorage({ public: false, allowlist: [], blocklist: [PUB_BLACKLISTED] });
   const result = await checkAccess(storage, PUB_BLACKLISTED, "upload");
   assertEquals(result.allowed, false);
 });
@@ -96,33 +96,33 @@ Deno.test("ACL-05 compat: private mode, blacklisted-only pubkey, action=upload �
 
 Deno.test("ACL-01: public+payments, config has payments:true → mode is active (config normalizes correctly)", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, payments: true, whitelist: [], blacklist: [] });
+  const storage = makeStorage({ public: true, payments: true, allowlist: [], blocklist: [] });
   const cache = await loadAccessConfig(storage);
   assertEquals(cache.config.payments, true);
 });
 
-Deno.test("ACL-02: public+payments, whitelisted pubkey, action=upload → allowed:true (no payment required)", async () => {
+Deno.test("ACL-02: public+payments, allowlisted pubkey, action=upload → allowed:true (no payment required)", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, payments: true, whitelist: [PUB_WHITELISTED], blacklist: [] });
+  const storage = makeStorage({ public: true, payments: true, allowlist: [PUB_WHITELISTED], blocklist: [] });
   const result = await checkAccess(storage, PUB_WHITELISTED, "upload");
   assertEquals(result.allowed, true);
 });
 
-Deno.test("ACL-03: public+payments, blacklisted pubkey, action=upload → denied with reason 'blacklisted' (NOT requiresPayment)", async () => {
+Deno.test("ACL-03: public+payments, blocked pubkey, action=upload → denied with reason 'blocked' (NOT requiresPayment)", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, payments: true, whitelist: [], blacklist: [PUB_BLACKLISTED] });
+  const storage = makeStorage({ public: true, payments: true, allowlist: [], blocklist: [PUB_BLACKLISTED] });
   const result = await checkAccess(storage, PUB_BLACKLISTED, "upload");
   assertEquals(result.allowed, false);
   if (!result.allowed) {
-    assertEquals(result.reason.includes("blacklisted"), true);
-    // Must NOT have requiresPayment set — blacklist is a hard deny, not a payment gate
+    assertEquals(result.reason.includes("blocked"), true);
+    // Must NOT have requiresPayment set — blocklist is a hard deny, not a payment gate
     assertEquals((result as { requiresPayment?: unknown }).requiresPayment, undefined);
   }
 });
 
 Deno.test("ACL-04: public+payments, unlisted pubkey, action=upload → denied with requiresPayment:true, reason='payment_required'", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, payments: true, whitelist: [], blacklist: [] });
+  const storage = makeStorage({ public: true, payments: true, allowlist: [], blocklist: [] });
   const result = await checkAccess(storage, PUB_UNLISTED, "upload");
   assertEquals(result.allowed, false);
   if (!result.allowed) {
@@ -133,7 +133,7 @@ Deno.test("ACL-04: public+payments, unlisted pubkey, action=upload → denied wi
 
 Deno.test("ACL-04: public+payments, unlisted pubkey, action=mirror → denied with requiresPayment:true (mirror also gated)", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, payments: true, whitelist: [], blacklist: [] });
+  const storage = makeStorage({ public: true, payments: true, allowlist: [], blocklist: [] });
   const result = await checkAccess(storage, PUB_UNLISTED, "mirror");
   assertEquals(result.allowed, false);
   if (!result.allowed) {
@@ -144,18 +144,18 @@ Deno.test("ACL-04: public+payments, unlisted pubkey, action=mirror → denied wi
 
 Deno.test("ACL-04: public+payments, unlisted pubkey, action=delete → allowed:true (delete always free)", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, payments: true, whitelist: [], blacklist: [] });
+  const storage = makeStorage({ public: true, payments: true, allowlist: [], blocklist: [] });
   const result = await checkAccess(storage, PUB_UNLISTED, "delete");
   assertEquals(result.allowed, true);
 });
 
-Deno.test("ACL-03 edge: public+payments, pubkey on both lists, action=upload → denied 'blacklisted' (blacklist wins over whitelist)", async () => {
+Deno.test("ACL-03 edge: public+payments, pubkey on both lists, action=upload → denied 'blocked' (blocklist wins over allowlist)", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, payments: true, whitelist: [PUB_BOTH], blacklist: [PUB_BOTH] });
+  const storage = makeStorage({ public: true, payments: true, allowlist: [PUB_BOTH], blocklist: [PUB_BOTH] });
   const result = await checkAccess(storage, PUB_BOTH, "upload");
   assertEquals(result.allowed, false);
   if (!result.allowed) {
-    assertEquals(result.reason.includes("blacklisted"), true);
+    assertEquals(result.reason.includes("blocked"), true);
     assertEquals((result as { requiresPayment?: unknown }).requiresPayment, undefined);
   }
 });
@@ -166,14 +166,14 @@ Deno.test("ACL-03 edge: public+payments, pubkey on both lists, action=upload →
 
 Deno.test("Normalizer: payments field missing → defaults to false (no console.warn)", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, whitelist: [], blacklist: [] });
+  const storage = makeStorage({ public: true, allowlist: [], blocklist: [] });
   const cache = await loadAccessConfig(storage);
   assertEquals(cache.config.payments, false);
 });
 
 Deno.test("Normalizer: payments=true, public=true → payments:true retained", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, payments: true, whitelist: [], blacklist: [] });
+  const storage = makeStorage({ public: true, payments: true, allowlist: [], blocklist: [] });
   const cache = await loadAccessConfig(storage);
   assertEquals(cache.config.payments, true);
 });
@@ -184,7 +184,7 @@ Deno.test("Normalizer: payments=true, public=false → payments forced to false 
   const originalWarn = console.warn;
   console.warn = (...args: unknown[]) => { warnMessages.push(args.join(" ")); };
   try {
-    const storage = makeStorage({ public: false, payments: true, whitelist: [], blacklist: [] });
+    const storage = makeStorage({ public: false, payments: true, allowlist: [], blocklist: [] });
     const cache = await loadAccessConfig(storage);
     assertEquals(cache.config.payments, false);
     assertEquals(warnMessages.some((m) => m.includes("payments")), true);
@@ -195,14 +195,14 @@ Deno.test("Normalizer: payments=true, public=false → payments forced to false 
 
 Deno.test("Normalizer: payments='string' → defaults to false", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, payments: "yes", whitelist: [], blacklist: [] });
+  const storage = makeStorage({ public: true, payments: "yes", allowlist: [], blocklist: [] });
   const cache = await loadAccessConfig(storage);
   assertEquals(cache.config.payments, false);
 });
 
 Deno.test("Normalizer: payments=null → defaults to false", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, payments: null, whitelist: [], blacklist: [] });
+  const storage = makeStorage({ public: true, payments: null, allowlist: [], blocklist: [] });
   const cache = await loadAccessConfig(storage);
   assertEquals(cache.config.payments, false);
 });
@@ -217,7 +217,7 @@ Deno.test("loadAccessConfig: second call within TTL returns cached result (no ex
   const storage: StorageClient = {
     getJson: async (_path: string) => {
       callCount++;
-      return { public: true, whitelist: [], blacklist: [], payments: false };
+      return { public: true, allowlist: [], blocklist: [], payments: false };
     },
   } as unknown as StorageClient;
   const first = await loadAccessConfig(storage);
@@ -230,7 +230,7 @@ Deno.test("loadAccessConfig: second call within TTL returns cached result (no ex
 // filterPubkeys — non-string entries
 // ---------------------------------------------------------------------------
 
-Deno.test("filterPubkeys: non-string entries in whitelist are skipped with console.warn", async () => {
+Deno.test("filterPubkeys: non-string entries in allowlist are skipped with console.warn", async () => {
   _resetAccessCacheForTesting();
   const warns: string[] = [];
   const origWarn = console.warn;
@@ -238,13 +238,13 @@ Deno.test("filterPubkeys: non-string entries in whitelist are skipped with conso
   try {
     const storage = makeStorage({
       public: true,
-      whitelist: [123, null, PUB_CLEAN],
-      blacklist: [],
+      allowlist: [123, null, PUB_CLEAN],
+      blocklist: [],
     });
     const cache = await loadAccessConfig(storage);
     // Only the valid hex-64 entry should survive
-    assertEquals(cache.config.whitelist.length, 1);
-    assertEquals(cache.config.whitelist[0], PUB_CLEAN);
+    assertEquals(cache.config.allowlist.length, 1);
+    assertEquals(cache.config.allowlist[0], PUB_CLEAN);
     // console.warn should have fired for invalid entries
     assertEquals(warns.filter((m) => m.includes("invalid pubkey")).length, 2);
   } finally {
@@ -262,6 +262,6 @@ Deno.test("Normalizer: raw config is a number → returns defaults", async () =>
   const cache = await loadAccessConfig(storage);
   assertEquals(cache.config.public, true);
   assertEquals(cache.config.payments, false);
-  assertEquals(cache.config.whitelist.length, 0);
-  assertEquals(cache.config.blacklist.length, 0);
+  assertEquals(cache.config.allowlist.length, 0);
+  assertEquals(cache.config.blocklist.length, 0);
 });

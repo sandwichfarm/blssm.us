@@ -14,7 +14,9 @@ const walletCache = new Map<string, CashuWallet>();
 
 // Module-level spent-proof cache — fast-reject optimization (best-effort, not authoritative)
 // The mint's NUT-03 swap endpoint is the authoritative double-spend check.
-const spentSecrets = new Set<string>();
+// Capped to prevent unbounded memory growth; evicts oldest entries when full.
+const SPENT_CACHE_MAX = 100_000;
+const spentSecrets = new Map<string, true>();
 
 /** Reset spent-proof cache and wallet cache — test isolation only */
 export function _resetSpentCacheForTesting(): void {
@@ -27,9 +29,17 @@ export function isProofSpent(secrets: string[]): boolean {
   return secrets.some((s) => spentSecrets.has(s));
 }
 
-/** Record proof secrets as spent in local cache */
+/** Record proof secrets as spent in local cache, evicting oldest if at capacity */
 export function addToSpentCache(secrets: string[]): void {
-  for (const s of secrets) spentSecrets.add(s);
+  for (const s of secrets) {
+    if (spentSecrets.has(s)) continue;
+    if (spentSecrets.size >= SPENT_CACHE_MAX) {
+      // Map iterates in insertion order — first key is the oldest
+      const oldest = spentSecrets.keys().next().value;
+      if (oldest !== undefined) spentSecrets.delete(oldest);
+    }
+    spentSecrets.set(s, true);
+  }
 }
 
 /**

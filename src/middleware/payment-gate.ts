@@ -67,9 +67,17 @@ export async function paymentGate(
   // Step 5: Read BTC/USD price from in-memory cache
   const btcUsd = await getPrice();
 
-  // Step 6: Fail open if price unavailable (startup race — mint still validates cryptographically)
+  // Step 6: Fail closed if price unavailable — reject with 503 (never allow free uploads due to feed outage)
   if (btcUsd === null) {
-    return null;
+    console.warn("[payment-gate] BTC price unavailable — failing closed (503)");
+    return new Response(null, {
+      status: 503,
+      headers: {
+        "X-Reason": "price_unavailable",
+        "Retry-After": "30",
+        "Cache-Control": "no-store",
+      },
+    });
   }
 
   // Step 7: Extract X-Cashu header from request

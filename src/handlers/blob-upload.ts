@@ -29,6 +29,7 @@ export async function handleBlobUpload(
 
   // Access control — GATE-01: runs after auth, before body read
   const access = await checkAccess(storage, auth.pubkey, "upload");
+  let paidForBytes = 0; // tracks Content-Length used for pricing (0 = no payment path)
   if (!access.allowed) {
     if (access.requiresPayment) {
       const cl = request.headers.get("Content-Length");
@@ -38,6 +39,7 @@ export async function handleBlobUpload(
       }
       const gate = await paymentGate(request, storage, fileSizeBytes);
       if (gate) return gate;
+      paidForBytes = fileSizeBytes;
       // null = proof valid, fall through to body read
     } else {
       return errorResponse(access.reason, 403);
@@ -48,6 +50,11 @@ export async function handleBlobUpload(
   const body = await request.arrayBuffer();
   if (!body || body.byteLength === 0) {
     return errorResponse("Empty upload body", 400);
+  }
+
+  // Verify actual body size does not exceed Content-Length used for payment pricing
+  if (paidForBytes > 0 && body.byteLength > paidForBytes) {
+    return errorResponse("Body size exceeds Content-Length used for payment", 400);
   }
 
   // Check size limit

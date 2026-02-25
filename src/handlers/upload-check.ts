@@ -62,9 +62,15 @@ export async function handleUploadCheck(
                 status: 402,
                 headers: priceResp.headers,
               });
+            } else {
+              // Price unavailable: fail closed (503) — never fall through to allow free uploads
+              return new Response(null, {
+                status: 503,
+                headers: { "X-Reason": "price_unavailable", "Retry-After": "30" },
+              });
             }
           }
-          // Payments disabled or price unavailable: fall through (fail open)
+          // Payments disabled: fall through to 200
         } else {
           return new Response(null, {
             status: 403,

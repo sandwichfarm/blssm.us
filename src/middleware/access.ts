@@ -11,8 +11,8 @@ export type AccessAction = "upload" | "mirror" | "delete";
 
 interface AccessCache {
   config: AccessConfig;
-  whitelist: Set<string>; // Pre-built for O(1) lookup
-  blacklist: Set<string>; // Pre-built for O(1) lookup
+  allowlist: Set<string>; // Pre-built for O(1) lookup
+  blocklist: Set<string>; // Pre-built for O(1) lookup
   expires: number;
 }
 
@@ -25,8 +25,8 @@ export function _resetAccessCacheForTesting(): void {
 
 const DEFAULT_ACCESS_CONFIG: AccessConfig = {
   public: true,
-  whitelist: [],
-  blacklist: [],
+  allowlist: [],
+  blocklist: [],
   payments: false,
 };
 
@@ -63,8 +63,8 @@ function normalizeAccessConfig(raw: unknown): AccessConfig {
 
   return {
     public: isPublic,
-    whitelist: filterPubkeys(r.whitelist, "whitelist"),
-    blacklist: filterPubkeys(r.blacklist, "blacklist"),
+    allowlist: filterPubkeys(r.allowlist, "allowlist"),
+    blocklist: filterPubkeys(r.blocklist, "blocklist"),
     payments,
   };
 }
@@ -75,14 +75,14 @@ function normalizeAccessConfig(raw: unknown): AccessConfig {
  * Decision matrix (v1.1):
  *   Mode     | Pubkey state        | Decision  | Req
  *   ---------|---------------------|-----------|------
- *   public   | blacklisted         | DENY 403  | ACL-02
- *   public   | whitelisted         | ALLOW     | ACL-01, ACL-03 (whitelist is a no-op: allow via "not blacklisted")
+ *   public   | blocklisted         | DENY 403  | ACL-02
+ *   public   | allowlisted         | ALLOW     | ACL-01, ACL-03 (allowlist is a no-op: allow via "not blocklisted")
  *   public   | neither             | ALLOW     | ACL-01
- *   private  | whitelisted         | ALLOW     | ACL-04
- *   private  | not whitelisted     | DENY 403  | ACL-05
- *   private  | blacklisted only    | DENY 403  | ACL-05 (blacklist irrelevant: denied by "not whitelisted")
- *   pub+pay  | blacklisted         | DENY 403  | ACL-03
- *   pub+pay  | whitelisted         | ALLOW     | ACL-02
+ *   private  | allowlisted         | ALLOW     | ACL-04
+ *   private  | not allowlisted     | DENY 403  | ACL-05
+ *   private  | blocklisted only    | DENY 403  | ACL-05 (blocklist irrelevant: denied by "not allowlisted")
+ *   pub+pay  | blocklisted         | DENY 403  | ACL-03
+ *   pub+pay  | allowlisted         | ALLOW     | ACL-02
  *   pub+pay  | unlisted + upload   | PAY 402   | ACL-04
  *   pub+pay  | unlisted + mirror   | PAY 402   | ACL-04
  *   pub+pay  | unlisted + delete   | ALLOW     | ACL-04 (delete always free)
@@ -105,8 +105,8 @@ export async function loadAccessConfig(
   const config = normalizeAccessConfig(raw);
   accessCache = {
     config,
-    whitelist: new Set(config.whitelist),
-    blacklist: new Set(config.blacklist),
+    allowlist: new Set(config.allowlist),
+    blocklist: new Set(config.blocklist),
     expires: now + ttlMs,
   };
   return accessCache;
@@ -131,15 +131,15 @@ export async function checkAccess(
   const cache = await loadAccessConfig(storage, ttlMs);
 
   if (cache.config.public) {
-    // Blacklist always takes priority in all public modes (ACL-03)
-    if (cache.blacklist.has(pubkey)) {
-      return { allowed: false, reason: "pubkey is blacklisted" };
+    // Blocklist always takes priority in all public modes (ACL-03)
+    if (cache.blocklist.has(pubkey)) {
+      return { allowed: false, reason: "pubkey is blocked" };
     }
 
     // Public+payments mode (v1.1)
     if (cache.config.payments && action !== "delete") {
-      // Whitelisted pubkeys bypass payment (ACL-02)
-      if (cache.whitelist.has(pubkey)) {
+      // Allowlisted pubkeys bypass payment (ACL-02)
+      if (cache.allowlist.has(pubkey)) {
         return { allowed: true };
       }
       // Unlisted pubkeys are routed to payment for upload/mirror (ACL-04)
@@ -151,10 +151,10 @@ export async function checkAccess(
   }
 
   // Private mode (ACL-04, ACL-05, ACL-06):
-  // - Whitelist is the ONLY path to allowed (ACL-04)
-  // - Blacklist is IGNORED — do NOT add a blacklist check here (ACL-06)
-  // - Non-whitelisted pubkeys are denied with a user-facing reason (ACL-05)
-  if (cache.whitelist.has(pubkey)) {
+  // - Allowlist is the ONLY path to allowed (ACL-04)
+  // - Blocklist is IGNORED — do NOT add a blocklist check here (ACL-06)
+  // - Non-allowlisted pubkeys are denied with a user-facing reason (ACL-05)
+  if (cache.allowlist.has(pubkey)) {
     return { allowed: true }; // ACL-04
   }
   return {

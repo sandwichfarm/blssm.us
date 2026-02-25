@@ -61,10 +61,10 @@ Deno.test("paymentGate: returns null when payment.json missing (null config)", a
 });
 
 // ---------------------------------------------------------------------------
-// Test: BTC price unavailable → fail open (returns null)
+// Test: BTC price unavailable → fail closed (returns 503)
 // ---------------------------------------------------------------------------
 
-Deno.test("paymentGate: returns null (fail open) when BTC price unavailable", async () => {
+Deno.test("paymentGate: returns 503 (fail closed) when BTC price unavailable", async () => {
   _resetPaymentCacheForTesting();
   _resetPriceCacheForTesting();
 
@@ -77,7 +77,10 @@ Deno.test("paymentGate: returns null (fail open) when BTC price unavailable", as
   const result = await paymentGate(request, storage, 1024, {
     getBtcPrice: mockGetBtcPrice(null),
   });
-  assertEquals(result, null);
+  assertEquals(result !== null, true, "Should return a Response, not null");
+  assertEquals(result!.status, 503);
+  assertEquals(result!.headers.get("X-Reason"), "price_unavailable");
+  assertEquals(result!.headers.get("Retry-After"), "30");
 });
 
 // ---------------------------------------------------------------------------
