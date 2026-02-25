@@ -3,6 +3,8 @@ import type { StorageClient } from "../storage/client.ts";
 import { validateAuth } from "../auth/nostr.ts";
 import { addOwner, addToIndex, isBlocked } from "../storage/metadata.ts";
 import { sha256Hex, errorResponse, jsonResponse, isValidSha256 } from "../util.ts";
+import { checkAccess } from "../middleware/access.ts";
+import { paymentGate } from "../middleware/payment-gate.ts";
 
 /**
  * BUD-02: PUT /upload — Upload a blob
@@ -25,10 +27,34 @@ export async function handleBlobUpload(
     return errorResponse(auth.error || "Unauthorized", 401);
   }
 
+  // Access control — GATE-01: runs after auth, before body read
+  const access = await checkAccess(storage, auth.pubkey, "upload");
+  let paidForBytes = 0; // tracks Content-Length used for pricing (0 = no payment path)
+  if (!access.allowed) {
+    if (access.requiresPayment) {
+      const cl = request.headers.get("Content-Length");
+      const fileSizeBytes = cl ? parseInt(cl, 10) : NaN;
+      if (isNaN(fileSizeBytes)) {
+        return errorResponse("Content-Length required for payment calculation", 411);
+      }
+      const gate = await paymentGate(request, storage, fileSizeBytes);
+      if (gate) return gate;
+      paidForBytes = fileSizeBytes;
+      // null = proof valid, fall through to body read
+    } else {
+      return errorResponse(access.reason, 403);
+    }
+  }
+
   // Read body
   const body = await request.arrayBuffer();
   if (!body || body.byteLength === 0) {
     return errorResponse("Empty upload body", 400);
+  }
+
+  // Verify actual body size does not exceed Content-Length used for payment pricing
+  if (paidForBytes > 0 && body.byteLength > paidForBytes) {
+    return errorResponse("Body size exceeds Content-Length used for payment", 400);
   }
 
   // Check size limit

@@ -49,6 +49,19 @@ export interface BlockedConfig {
   hashes: string[];
 }
 
+/** Access control configuration from config/access.json */
+export interface AccessConfig {
+  /** true = public mode (anyone can publish unless on blocklist)
+   *  false = private mode (only allowlisted pubkeys can publish) */
+  public: boolean;
+  /** Hex pubkeys always allowed (in public+payments mode, also skip payment) */
+  allowlist: string[];
+  /** Hex pubkeys always denied (in public mode; ignored in private mode) */
+  blocklist: string[];
+  /** true = public+payments mode (unlisted pubkeys routed to payment). Only meaningful when public=true. Default: false */
+  payments?: boolean;
+}
+
 /** Server configuration from environment */
 export interface Config {
   /** Storage zone password (FTP & API Access → Password) */
@@ -84,4 +97,70 @@ export interface PaymentInfo {
   unit: string;
   /** LNURL or Lightning address */
   lnurl?: string;
+}
+
+/**
+ * A single Cashu mint entry in operator payment config.
+ * Minimal for v1; future phases may add optional per-mint fields (e.g. weight, label).
+ */
+export interface MintEntry {
+  /** HTTPS URL of the Cashu mint */
+  url: string;
+}
+
+/**
+ * Per-action payment amounts in satoshis.
+ * 0 = free for that action (no 402 issued).
+ * Delete is always free and excluded by design (encourages storage cleanup).
+ */
+export interface PaymentAmounts {
+  /** Satoshis required to upload a blob; 0 = free */
+  upload: number;
+  /** Satoshis required to mirror a blob; 0 = free */
+  mirror: number;
+}
+
+/**
+ * Operator configuration from config/payment.json.
+ * NOT the same as PaymentInfo (which is the 402 response format sent to clients).
+ * An empty mints array disables payments entirely, even if amounts are set.
+ */
+export interface PaymentConfig {
+  /** Cashu mints accepted for payment verification */
+  mints: MintEntry[];
+  /** Per-action amounts in satoshis */
+  amounts: PaymentAmounts;
+}
+
+/** USD-basis pricing parameters from config/payment.toml */
+export interface PricingConfig {
+  /** USD cost per gigabyte of storage */
+  cost_per_gb_usd: number;
+  /** Profit margin as decimal (0.20 = 20%) */
+  profit_margin_pct: number;
+  /** Slippage premium as decimal (0.05 = 5%) */
+  slippage_premium_pct: number;
+}
+
+/** Result of Cashu proof validation */
+export interface ValidationResult {
+  valid: boolean;
+  /** Error reason for X-Reason header (only set when valid=false) */
+  reason?: string;
+  /** HTTP status override (400 default, 503 for mint unreachable) */
+  status?: number;
+}
+
+/**
+ * Cache TTL configuration from config/cache.json.
+ * All values are in milliseconds internally (JSON values are in seconds).
+ * Missing config/cache.json defaults to 60 seconds for all caches.
+ */
+export interface CacheConfig {
+  /** TTL in ms for the access config cache (config/access.json) */
+  accessTtl: number;
+  /** TTL in ms for the payment config cache (config/payment.json) */
+  paymentTtl: number;
+  /** TTL in ms for the blocked hashes cache (config/blocked.json) */
+  blockedTtl: number;
 }

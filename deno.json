@@ -5,8 +5,10 @@
     "dev": "deno run -A --watch src/main.ts"
   },
   "imports": {
+    "@cashu/cashu-ts": "npm:@cashu/cashu-ts@3.5.0",
     "@noble/curves/": "npm:/@noble/curves@1.8.1/",
-    "@noble/hashes/": "npm:/@noble/hashes@1.6.1/"
+    "@noble/hashes/": "npm:/@noble/hashes@1.6.1/",
+    "@std/toml": "jsr:@std/toml@^1.0.0"
   },
   "compilerOptions": {
     "strict": true,

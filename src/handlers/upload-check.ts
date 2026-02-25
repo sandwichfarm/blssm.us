@@ -3,6 +3,10 @@ import type { StorageClient } from "../storage/client.ts";
 import { validateAuth } from "../auth/nostr.ts";
 import { isBlocked } from "../storage/metadata.ts";
 import { errorResponse, isValidSha256 } from "../util.ts";
+import { checkAccess } from "../middleware/access.ts";
+import { loadPaymentConfig, paymentsEnabled } from "../middleware/payment-config.ts";
+import { loadPricingConfig, getBtcUsdPrice } from "../middleware/price-feed.ts";
+import { buildPaymentRequired } from "../middleware/payments.ts";
 
 /**
  * BUD-06: HEAD /upload — Upload pre-flight check
@@ -32,6 +36,48 @@ export async function handleUploadCheck(
         status: 403,
         headers: { "X-Reason": auth.error || "Invalid authorization" },
       });
+    }
+
+    // Access control — GATE-04/GATE-05: check after auth succeeds
+    // HEAD responses have no body — use X-Reason header (consistent with handler pattern)
+    if (auth.pubkey) {
+      const access = await checkAccess(storage, auth.pubkey, "upload");
+      if (!access.allowed) {
+        if (access.requiresPayment) {
+          // HEAD preflights: always return 402, never validate X-Cashu
+          // Even if client sends X-Cashu, ignore it — HEAD never consumes proofs
+          const { config: payConfig } = await loadPaymentConfig(storage);
+          if (paymentsEnabled(payConfig)) {
+            const { pricing } = await loadPricingConfig("config/payment.toml");
+            const btcUsd = await getBtcUsdPrice();
+            if (btcUsd !== null) {
+              // Use X-Content-Length for file size (BUD-06 convention for HEAD preflight)
+              const sizeStr = request.headers.get("X-Content-Length");
+              const effectiveSize = sizeStr ? parseInt(sizeStr, 10) : 0;
+              const finalSize = isNaN(effectiveSize) ? 0 : effectiveSize;
+              // 0 bytes → computeSatPrice returns 1 sat (floor), minimum discoverable price
+              const priceResp = buildPaymentRequired(finalSize, payConfig.mints.map(m => m.url), btcUsd, pricing);
+              // HEAD response: copy headers, null body (HTTP HEAD spec)
+              return new Response(null, {
+                status: 402,
+                headers: priceResp.headers,
+              });
+            } else {
+              // Price unavailable: fail closed (503) — never fall through to allow free uploads
+              return new Response(null, {
+                status: 503,
+                headers: { "X-Reason": "price_unavailable", "Retry-After": "30" },
+              });
+            }
+          }
+          // Payments disabled: fall through to 200
+        } else {
+          return new Response(null, {
+            status: 403,
+            headers: { "X-Reason": access.reason },
+          });
+        }
+      }
     }
   }
 

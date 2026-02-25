@@ -27,6 +27,40 @@ jobs:
       - name: Build
         run: deno task build
 
+      - name: Sync pricing config to Bunny env vars
+        env:
+          BUNNY_API_KEY: ${{ secrets.BUNNY_API_KEY }}
+        run: |
+          SCRIPT_ID=65595
+          API_BASE="https://api.bunny.net/compute/script/${SCRIPT_ID}/variables"
+
+          upsert_var() {
+            curl -sf -X PUT "$API_BASE" \
+              -H "AccessKey: $BUNNY_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"Name\":\"$1\",\"DefaultValue\":\"$2\",\"Required\":false}"
+          }
+
+          TOML="config/payment.toml"
+
+          # Mint URLs — collect all url = "..." lines into comma-separated string
+          MINT_URLS=$(grep -oP 'url\s*=\s*"\K[^"]+' "$TOML" | paste -sd, -)
+
+          # Pricing values
+          COST=$(grep -oP 'cost_per_gb_usd\s*=\s*\K[\d.]+' "$TOML")
+          MARGIN=$(grep -oP 'profit_margin_pct\s*=\s*\K[\d.]+' "$TOML")
+          SLIPPAGE=$(grep -oP 'slippage_premium_pct\s*=\s*\K[\d.]+' "$TOML")
+
+          upsert_var "PRICING_MINT_URLS" "$MINT_URLS"
+          upsert_var "PRICING_COST_PER_GB_USD" "${COST:-0.02}"
+          upsert_var "PRICING_PROFIT_MARGIN_PCT" "${MARGIN:-0.20}"
+          upsert_var "PRICING_SLIPPAGE_PREMIUM_PCT" "${SLIPPAGE:-0.05}"
+
+          # Admin refresh endpoint
+          upsert_var "ADMIN_KEY" "${{ secrets.ADMIN_KEY }}"
+          upsert_var "BUNNY_API_KEY" "${{ secrets.BUNNY_API_KEY }}"
+          upsert_var "BUNNY_SCRIPT_ID" "65595"
+
       - name: Publish the script to Bunny
         uses: BunnyWay/actions/deploy-script@main
         with:

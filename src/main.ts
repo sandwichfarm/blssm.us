@@ -4,6 +4,7 @@ import { route } from "./router.ts";
 import { StorageClient } from "./storage/client.ts";
 import type { Config } from "./types.ts";
 
+
 function getConfig(): Config {
   const env = (key: string, fallback?: string): string => {
     const val = process.env[key] ?? fallback;

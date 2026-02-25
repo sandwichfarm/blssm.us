@@ -1,0 +1,12 @@
+# Accepted Cashu mints for payment verification
+[[mints]]
+url = "https://mint.minibits.cash/Bitcoin"
+
+[[mints]]
+url = "https://mint.coinos.io"
+
+# USD-basis pricing parameters
+[pricing]
+cost_per_gb_usd = 0.02
+profit_margin_pct = 0.20
+slippage_premium_pct = 0.05
