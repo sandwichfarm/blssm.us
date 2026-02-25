@@ -256,6 +256,48 @@ Deno.test("filterPubkeys: non-string entries in allowlist are skipped with conso
 // normalizeAccessConfig — non-null non-object raw
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Delete action access control (GATE-03 — added in blob-delete.ts)
+// ---------------------------------------------------------------------------
+
+Deno.test("GATE-03: public mode, blocked pubkey, action=delete → denied", async () => {
+  _resetAccessCacheForTesting();
+  const storage = makeStorage({ public: true, allowlist: [], blocklist: [PUB_BLOCKED] });
+  const result = await checkAccess(storage, PUB_BLOCKED, "delete");
+  assertEquals(result.allowed, false);
+  if (!result.allowed) {
+    assertEquals(result.reason.includes("blocked"), true);
+  }
+});
+
+Deno.test("GATE-03: private mode, non-allowlisted pubkey, action=delete → denied", async () => {
+  _resetAccessCacheForTesting();
+  const storage = makeStorage({ public: false, allowlist: [PUB_ALLOWED], blocklist: [] });
+  const result = await checkAccess(storage, PUB_UNLISTED, "delete");
+  assertEquals(result.allowed, false);
+  if (!result.allowed) {
+    assertEquals(result.reason.length > 0, true);
+  }
+});
+
+Deno.test("GATE-03: private mode, allowlisted pubkey, action=delete → allowed", async () => {
+  _resetAccessCacheForTesting();
+  const storage = makeStorage({ public: false, allowlist: [PUB_ALLOWED], blocklist: [] });
+  const result = await checkAccess(storage, PUB_ALLOWED, "delete");
+  assertEquals(result.allowed, true);
+});
+
+Deno.test("GATE-03: public mode, clean pubkey, action=delete → allowed", async () => {
+  _resetAccessCacheForTesting();
+  const storage = makeStorage({ public: true, allowlist: [], blocklist: [] });
+  const result = await checkAccess(storage, PUB_CLEAN, "delete");
+  assertEquals(result.allowed, true);
+});
+
+// ---------------------------------------------------------------------------
+// normalizeAccessConfig — non-null non-object raw
+// ---------------------------------------------------------------------------
+
 Deno.test("Normalizer: raw config is a number → returns defaults", async () => {
   _resetAccessCacheForTesting();
   const storage = makeStorage(42);

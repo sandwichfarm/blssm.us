@@ -592,3 +592,43 @@ Deno.test("getBtcUsdPrice: ignores invalid BTC_USD_PRICE env var", async () => {
     else Deno.env.set("BTC_USD_PRICE", orig);
   }
 });
+
+Deno.test("getBtcUsdPrice: skips stale BTC_USD_PRICE env var and falls through to fetch", async () => {
+  _resetPriceCacheForTesting();
+  const orig = Deno.env.get("BTC_USD_PRICE");
+  const origDateNow = Date.now;
+  try {
+    Deno.env.set("BTC_USD_PRICE", "50000");
+
+    // First call: env var is fresh (cold-start), should return env value
+    let fetchCalled = false;
+    let restore = stubFetch(async () => { fetchCalled = true; throw new Error("should not fetch"); });
+    try {
+      const freshPrice = await getBtcUsdPrice();
+      assertEquals(freshPrice, 50_000);
+      assertEquals(fetchCalled, false);
+    } finally {
+      restore();
+    }
+
+    // Advance time past ENV_PRICE_STALE_MS (10 min = 600_000 ms)
+    const baseTime = origDateNow.call(Date);
+    Date.now = () => baseTime + 700_000;
+
+    // Second call: env var is stale, should fall through to fetch
+    restore = stubFetch(async (url) => {
+      if (url.includes("coingecko")) return geckoResponse(88_000);
+      return coinbaseResponse(88_000);
+    });
+    try {
+      const stalePrice = await getBtcUsdPrice();
+      assertEquals(stalePrice, 88_000);
+    } finally {
+      restore();
+    }
+  } finally {
+    Date.now = origDateNow;
+    if (orig === undefined) Deno.env.delete("BTC_USD_PRICE");
+    else Deno.env.set("BTC_USD_PRICE", orig);
+  }
+});
