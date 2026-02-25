@@ -3,7 +3,7 @@ import process from "node:process";
 import { route } from "./router.ts";
 import { StorageClient } from "./storage/client.ts";
 import type { Config } from "./types.ts";
-import { startPriceFeedCron } from "./middleware/price-feed.ts";
+
 
 function getConfig(): Config {
   const env = (key: string, fallback?: string): string => {
@@ -27,8 +27,6 @@ function getConfig(): Config {
 
 const config = getConfig();
 const storage = new StorageClient(config);
-
-startPriceFeedCron();
 
 BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
   return route(request, storage, config);

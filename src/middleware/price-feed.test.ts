@@ -6,7 +6,7 @@ import {
   getBtcUsdPrice,
   loadPricingConfig,
   readBtcUsdPrice,
-  startPriceFeedCron,
+  setPriceCache,
   _resetPriceCacheForTesting,
 } from "./price-feed.ts";
 import type { PricingConfig } from "../types.ts";
@@ -533,47 +533,62 @@ Deno.test("getBtcUsdPrice: returns null when no cache and fetch fails", async ()
 });
 
 // ---------------------------------------------------------------------------
-// startPriceFeedCron — smoke tests (in-memory)
+// setPriceCache tests
 // ---------------------------------------------------------------------------
 
-Deno.test({ name: "startPriceFeedCron: successful tick primes in-memory cache", sanitizeOps: false, sanitizeResources: false, fn: async () => {
+Deno.test("setPriceCache: sets price that getBtcUsdPrice returns", async () => {
   _resetPriceCacheForTesting();
-  const restore = stubFetch(async (url) => {
-    if (url.includes("coingecko")) return geckoResponse(100_000);
-    return coinbaseResponse(100_000);
-  });
+  // No fetch should be needed — stub fetch to error to prove it
+  const restore = stubFetch(async () => { throw new Error("should not fetch"); });
   try {
-    startPriceFeedCron();
-    // Wait for the immediate tick to complete
-    await new Promise((r) => setTimeout(r, 200));
-    // getBtcUsdPrice should return cached value without fetching
-    const restore2 = stubFetch(async () => { throw new Error("should not fetch again"); });
+    setPriceCache(88_000);
+    const price = await getBtcUsdPrice();
+    assertEquals(price, 88_000);
+  } finally {
+    restore();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// getBtcUsdPrice — env var path
+// ---------------------------------------------------------------------------
+
+Deno.test("getBtcUsdPrice: returns BTC_USD_PRICE env var when set", async () => {
+  _resetPriceCacheForTesting();
+  const orig = Deno.env.get("BTC_USD_PRICE");
+  try {
+    Deno.env.set("BTC_USD_PRICE", "77000");
+    // Should not need to fetch
+    const restore = stubFetch(async () => { throw new Error("should not fetch"); });
     try {
       const price = await getBtcUsdPrice();
-      assertEquals(price, 100_000);
+      assertEquals(price, 77_000);
     } finally {
-      restore2();
+      restore();
     }
   } finally {
-    restore();
+    if (orig === undefined) Deno.env.delete("BTC_USD_PRICE");
+    else Deno.env.set("BTC_USD_PRICE", orig);
   }
-}});
+});
 
-Deno.test({ name: "startPriceFeedCron: both fetches fail → console.warn fires, cache stays null", sanitizeOps: false, sanitizeResources: false, fn: async () => {
+Deno.test("getBtcUsdPrice: ignores invalid BTC_USD_PRICE env var", async () => {
   _resetPriceCacheForTesting();
-  const warns: string[] = [];
-  const origWarn = console.warn;
-  console.warn = (...args: unknown[]) => { warns.push(args.join(" ")); };
-
-  const restore = stubFetch(async (_url) => {
-    throw new Error("network error");
-  });
+  const orig = Deno.env.get("BTC_USD_PRICE");
   try {
-    startPriceFeedCron();
-    await new Promise((r) => setTimeout(r, 200));
-    assertEquals(warns.some((m) => m.includes("Failed to fetch")), true);
+    Deno.env.set("BTC_USD_PRICE", "not-a-number");
+    const restore = stubFetch(async (url) => {
+      if (url.includes("coingecko")) return geckoResponse(99_000);
+      return coinbaseResponse(99_000);
+    });
+    try {
+      const price = await getBtcUsdPrice();
+      assertEquals(price, 99_000);
+    } finally {
+      restore();
+    }
   } finally {
-    console.warn = origWarn;
-    restore();
+    if (orig === undefined) Deno.env.delete("BTC_USD_PRICE");
+    else Deno.env.set("BTC_USD_PRICE", orig);
   }
-}});
+});

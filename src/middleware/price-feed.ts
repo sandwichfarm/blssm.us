@@ -126,13 +126,28 @@ export async function fetchBtcUsdPrice(): Promise<number | null> {
 // ---------------------------------------------------------------------------
 
 /**
+ * Set the in-memory BTC/USD price cache.
+ * Called by the admin refresh-price handler after a successful fetch.
+ */
+export function setPriceCache(price: number): void {
+  priceCache = { btcUsd: price, fetchedAt: Date.now() };
+}
+
+/**
  * Get the current BTC/USD price from the in-memory cache.
- * - If cache is fresh (< 5 min), returns cached value immediately.
- * - If stale or missing, kicks off a fetch (deduped with in-flight promise).
- * - If stale and a fetch is already in-flight, returns the stale value.
- * - Returns null only when cache is empty and fetch fails.
+ * Priority: env var BTC_USD_PRICE → fresh in-memory cache → on-demand fetch.
+ * Returns null only when all sources fail.
  */
 export async function getBtcUsdPrice(): Promise<number | null> {
+  // Check deploy-time / admin-refreshed env var first
+  const envPrice = process.env["BTC_USD_PRICE"];
+  if (envPrice) {
+    const parsed = Number(envPrice);
+    if (isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
   const now = Date.now();
 
   // Fresh cache — return immediately
@@ -175,30 +190,6 @@ export async function readBtcUsdPrice(pricePath: string): Promise<number | null>
   } catch {
     return null;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Price feed cron (in-memory, no filesystem)
-// ---------------------------------------------------------------------------
-
-/**
- * Start a price feed cron that fetches BTC/USD every 5 minutes and updates
- * the in-memory cache. Runs immediately on startup, then every 300 seconds.
- */
-export function startPriceFeedCron(): void {
-  const tick = async () => {
-    const price = await fetchBtcUsdPrice();
-    if (price !== null) {
-      priceCache = { btcUsd: price, fetchedAt: Date.now() };
-    } else {
-      console.warn("[price-feed] Failed to fetch BTC/USD price from all sources");
-    }
-  };
-
-  // Immediate first run
-  tick();
-  // Then every 5 minutes
-  setInterval(tick, 300_000);
 }
 
 // ---------------------------------------------------------------------------

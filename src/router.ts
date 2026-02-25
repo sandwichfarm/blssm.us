@@ -13,6 +13,7 @@ import { handleMedia } from "./handlers/media.ts";
 import { handleUploadCheck } from "./handlers/upload-check.ts";
 import { handleReport } from "./handlers/report.ts";
 import { handleSpa } from "./handlers/spa.ts";
+import { handleAdminRefreshPrice } from "./handlers/admin-refresh-price.ts";
 
 /** Pre-compiled blob path regexes (avoid re-creation per request) */
 const BLOB_PATH_RE = /^\/[0-9a-f]{64}/;
@@ -70,6 +71,10 @@ export async function route(
     // DELETE /<sha256> — BUD-02: Delete blob
     else if (method === "DELETE" && BLOB_PATH_EXACT_RE.test(path)) {
       response = await handleBlobDelete(request, storage, config);
+    }
+    // POST /admin/refresh-price — Admin: refresh BTC price
+    else if (path === "/admin/refresh-price" && method === "POST") {
+      response = await handleAdminRefreshPrice(request);
     }
     // SPA fallback for all other GET requests
     else if (method === "GET" && config.spaStoragePassword) {

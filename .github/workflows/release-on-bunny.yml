@@ -56,6 +56,11 @@ jobs:
           upsert_var "PRICING_PROFIT_MARGIN_PCT" "${MARGIN:-0.20}"
           upsert_var "PRICING_SLIPPAGE_PREMIUM_PCT" "${SLIPPAGE:-0.05}"
 
+          # Admin refresh endpoint
+          upsert_var "ADMIN_KEY" "${{ secrets.ADMIN_KEY }}"
+          upsert_var "BUNNY_API_KEY" "${{ secrets.BUNNY_API_KEY }}"
+          upsert_var "BUNNY_SCRIPT_ID" "65595"
+
       - name: Publish the script to Bunny
         uses: BunnyWay/actions/deploy-script@main
         with:
