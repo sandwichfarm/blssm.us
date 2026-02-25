@@ -1,4 +1,5 @@
 /// <reference lib="deno.ns" />
+import process from "node:process";
 import { parse } from "@std/toml";
 import type { PricingConfig } from "../types.ts";
 
@@ -11,6 +12,22 @@ const DEFAULT_PRICING: PricingConfig = {
 
 /** Bytes in one gigabyte */
 const BYTES_PER_GB = 1024 ** 3;
+
+// ---------------------------------------------------------------------------
+// In-memory caches
+// ---------------------------------------------------------------------------
+
+/** Cached pricing config (never changes at runtime) */
+let pricingCache: { mints: string[]; pricing: PricingConfig } | null = null;
+
+/** Cached BTC/USD price */
+let priceCache: { btcUsd: number; fetchedAt: number } | null = null;
+
+/** Deduplication promise for in-flight BTC price fetches */
+let priceFetchInFlight: Promise<number | null> | null = null;
+
+/** How long before the BTC price is considered stale (5 min) */
+const PRICE_STALE_MS = 300_000;
 
 /**
  * Compute the sat price for a given file size.
@@ -35,6 +52,10 @@ export function computeSatPrice(
   const sats = Math.ceil((usdCost / btcUsdPrice) * 100_000_000);
   return Math.max(1, sats);
 }
+
+// ---------------------------------------------------------------------------
+// BTC/USD price fetching
+// ---------------------------------------------------------------------------
 
 /**
  * Fetch BTC/USD price from CoinGecko API.
@@ -100,9 +121,48 @@ export async function fetchBtcUsdPrice(): Promise<number | null> {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// In-memory BTC price cache (replaces file-based approach)
+// ---------------------------------------------------------------------------
+
 /**
- * Read the BTC/USD price from the static JSON file written by startPriceFeedCron.
- * Returns null if the file is missing, unreadable, or contains invalid JSON/data.
+ * Get the current BTC/USD price from the in-memory cache.
+ * - If cache is fresh (< 5 min), returns cached value immediately.
+ * - If stale or missing, kicks off a fetch (deduped with in-flight promise).
+ * - If stale and a fetch is already in-flight, returns the stale value.
+ * - Returns null only when cache is empty and fetch fails.
+ */
+export async function getBtcUsdPrice(): Promise<number | null> {
+  const now = Date.now();
+
+  // Fresh cache — return immediately
+  if (priceCache && (now - priceCache.fetchedAt) < PRICE_STALE_MS) {
+    return priceCache.btcUsd;
+  }
+
+  // Stale or missing — need a fetch
+  if (!priceFetchInFlight) {
+    priceFetchInFlight = fetchBtcUsdPrice().then((price) => {
+      priceFetchInFlight = null;
+      if (price !== null) {
+        priceCache = { btcUsd: price, fetchedAt: Date.now() };
+      }
+      return price;
+    });
+  }
+
+  // If we have a stale value, return it while fetch is in-flight (don't block)
+  if (priceCache) {
+    return priceCache.btcUsd;
+  }
+
+  // No cache at all — must wait for the fetch
+  return priceFetchInFlight;
+}
+
+/**
+ * Read the BTC/USD price from a static JSON file.
+ * Kept exported for backward compatibility with existing tests.
  *
  * @param pricePath - Path to the JSON file (e.g. "/tmp/btc-price.json")
  */
@@ -117,28 +177,19 @@ export async function readBtcUsdPrice(pricePath: string): Promise<number | null>
   }
 }
 
+// ---------------------------------------------------------------------------
+// Price feed cron (in-memory, no filesystem)
+// ---------------------------------------------------------------------------
+
 /**
- * Start a price feed cron that fetches BTC/USD every 5 minutes and writes to pricePath.
- * Runs immediately on startup, then every 300 seconds via setInterval.
- * Written format: { btc_usd: number, updated: number }
- *
- * NOTE: This function is intentionally called at server startup in Phase 7.
- * It is NOT wired in this plan — exported for use by the Phase 7 wiring plan.
- *
- * @param pricePath - Path to write the JSON price file (e.g. "/tmp/btc-price.json")
+ * Start a price feed cron that fetches BTC/USD every 5 minutes and updates
+ * the in-memory cache. Runs immediately on startup, then every 300 seconds.
  */
-export function startPriceFeedCron(pricePath: string): void {
+export function startPriceFeedCron(): void {
   const tick = async () => {
     const price = await fetchBtcUsdPrice();
     if (price !== null) {
-      try {
-        await Deno.writeTextFile(
-          pricePath,
-          JSON.stringify({ btc_usd: price, updated: Date.now() }),
-        );
-      } catch (err) {
-        console.warn(`[price-feed] Failed to write price file: ${String(err)}`);
-      }
+      priceCache = { btcUsd: price, fetchedAt: Date.now() };
     } else {
       console.warn("[price-feed] Failed to fetch BTC/USD price from all sources");
     }
@@ -150,8 +201,68 @@ export function startPriceFeedCron(pricePath: string): void {
   setInterval(tick, 300_000);
 }
 
+// ---------------------------------------------------------------------------
+// Pricing config loading (env vars → TOML fallback)
+// ---------------------------------------------------------------------------
+
 /**
- * Load and parse the operator pricing configuration from a TOML file.
+ * Try to load pricing config from environment variables.
+ * Returns null if the env vars aren't set.
+ */
+function loadPricingConfigFromEnv(): { mints: string[]; pricing: PricingConfig } | null {
+  const mintUrlsRaw = process.env["PRICING_MINT_URLS"];
+  if (!mintUrlsRaw) return null;
+
+  // Parse mint URLs
+  const mints: string[] = [];
+  for (const raw of mintUrlsRaw.split(",")) {
+    const url = raw.trim();
+    if (!url) continue;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "https:") {
+        console.warn(`[price-feed] Skipping env mint with non-HTTPS URL: "${url.substring(0, 100)}"`);
+        continue;
+      }
+    } catch {
+      console.warn(`[price-feed] Skipping env mint with invalid URL: "${url.substring(0, 100)}"`);
+      continue;
+    }
+    mints.push(url);
+  }
+
+  // Parse pricing floats
+  const costRaw = process.env["PRICING_COST_PER_GB_USD"];
+  const marginRaw = process.env["PRICING_PROFIT_MARGIN_PCT"];
+  const slippageRaw = process.env["PRICING_SLIPPAGE_PREMIUM_PCT"];
+
+  const cost = costRaw ? parseFloat(costRaw) : NaN;
+  const margin = marginRaw ? parseFloat(marginRaw) : NaN;
+  const slippage = slippageRaw ? parseFloat(slippageRaw) : NaN;
+
+  if (
+    !isFinite(cost) || cost < 0 ||
+    !isFinite(margin) || margin < 0 ||
+    !isFinite(slippage) || slippage < 0
+  ) {
+    console.warn("[price-feed] Invalid pricing env vars — using defaults");
+    return { mints, pricing: { ...DEFAULT_PRICING } };
+  }
+
+  return {
+    mints,
+    pricing: {
+      cost_per_gb_usd: cost,
+      profit_margin_pct: margin,
+      slippage_premium_pct: slippage,
+    },
+  };
+}
+
+/**
+ * Load and parse the operator pricing configuration.
+ * Priority: in-memory cache → env vars → TOML file fallback.
+ *
  * - Mint URLs are validated (must be HTTPS); invalid entries warn-and-skip.
  * - Pricing params are validated; if any are invalid, defaults are used.
  * - Missing file returns empty mints + default pricing.
@@ -162,6 +273,17 @@ export function startPriceFeedCron(pricePath: string): void {
 export async function loadPricingConfig(
   tomlPath: string,
 ): Promise<{ mints: string[]; pricing: PricingConfig }> {
+  // Return cached result if available
+  if (pricingCache) return pricingCache;
+
+  // Try env vars first
+  const fromEnv = loadPricingConfigFromEnv();
+  if (fromEnv) {
+    pricingCache = fromEnv;
+    return pricingCache;
+  }
+
+  // Fall back to TOML file
   let raw: unknown;
 
   try {
@@ -169,11 +291,15 @@ export async function loadPricingConfig(
     raw = parse(text);
   } catch {
     // Missing or unreadable file — return safe defaults
-    return { mints: [], pricing: { ...DEFAULT_PRICING } };
+    const result = { mints: [] as string[], pricing: { ...DEFAULT_PRICING } };
+    pricingCache = result;
+    return result;
   }
 
   if (!raw || typeof raw !== "object") {
-    return { mints: [], pricing: { ...DEFAULT_PRICING } };
+    const result = { mints: [] as string[], pricing: { ...DEFAULT_PRICING } };
+    pricingCache = result;
+    return result;
   }
 
   const r = raw as Record<string, unknown>;
@@ -211,7 +337,9 @@ export async function loadPricingConfig(
   const rawPricing = r["pricing"];
   const pricing = parsePricingSection(rawPricing);
 
-  return { mints, pricing };
+  const result = { mints, pricing };
+  pricingCache = result;
+  return result;
 }
 
 /**
@@ -242,4 +370,15 @@ function parsePricingSection(raw: unknown): PricingConfig {
     profit_margin_pct: margin,
     slippage_premium_pct: slippage,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Test helpers
+// ---------------------------------------------------------------------------
+
+/** Reset all caches — for test isolation only */
+export function _resetPriceCacheForTesting(): void {
+  priceCache = null;
+  priceFetchInFlight = null;
+  pricingCache = null;
 }

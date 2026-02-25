@@ -5,7 +5,7 @@ import { isBlocked } from "../storage/metadata.ts";
 import { errorResponse, isValidSha256 } from "../util.ts";
 import { checkAccess } from "../middleware/access.ts";
 import { loadPaymentConfig, paymentsEnabled } from "../middleware/payment-config.ts";
-import { loadPricingConfig, readBtcUsdPrice } from "../middleware/price-feed.ts";
+import { loadPricingConfig, getBtcUsdPrice } from "../middleware/price-feed.ts";
 import { buildPaymentRequired } from "../middleware/payments.ts";
 
 /**
@@ -49,7 +49,7 @@ export async function handleUploadCheck(
           const { config: payConfig } = await loadPaymentConfig(storage);
           if (paymentsEnabled(payConfig)) {
             const { pricing } = await loadPricingConfig("config/payment.toml");
-            const btcUsd = await readBtcUsdPrice("/tmp/btc-price.json");
+            const btcUsd = await getBtcUsdPrice();
             if (btcUsd !== null) {
               // Use X-Content-Length for file size (BUD-06 convention for HEAD preflight)
               const sizeStr = request.headers.get("X-Content-Length");

@@ -3,6 +3,7 @@ import { assertEquals } from "jsr:@std/assert";
 import { paymentGate } from "./payment-gate.ts";
 import type { StorageClient } from "../storage/client.ts";
 import { _resetPaymentCacheForTesting } from "./payment-config.ts";
+import { _resetPriceCacheForTesting } from "./price-feed.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -32,21 +33,9 @@ function makeRequest(cashuHeader?: string): Request {
   });
 }
 
-/** Write a temporary BTC price file for tests */
-async function writeTempPriceFile(tmpPath: string, price: number): Promise<void> {
-  await Deno.writeTextFile(
-    tmpPath,
-    JSON.stringify({ btc_usd: price, updated: Date.now() }),
-  );
-}
-
-/** Remove temp file if exists */
-async function removeTempFile(path: string): Promise<void> {
-  try {
-    await Deno.remove(path);
-  } catch {
-    // ignore missing
-  }
+/** Create a getBtcPrice mock that returns the given price */
+function mockGetBtcPrice(price: number | null): () => Promise<number | null> {
+  return async () => price;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,6 +44,7 @@ async function removeTempFile(path: string): Promise<void> {
 
 Deno.test("paymentGate: returns null when payments disabled (no mints)", async () => {
   _resetPaymentCacheForTesting();
+  _resetPriceCacheForTesting();
   const storage = makeStorage({ mints: [], amounts: { upload: 0, mirror: 0 } });
   const request = makeRequest();
   const result = await paymentGate(request, storage, 1024);
@@ -63,6 +53,7 @@ Deno.test("paymentGate: returns null when payments disabled (no mints)", async (
 
 Deno.test("paymentGate: returns null when payment.json missing (null config)", async () => {
   _resetPaymentCacheForTesting();
+  _resetPriceCacheForTesting();
   const storage = makeStorage(null);
   const request = makeRequest();
   const result = await paymentGate(request, storage, 1024);
@@ -73,11 +64,9 @@ Deno.test("paymentGate: returns null when payment.json missing (null config)", a
 // Test: BTC price unavailable → fail open (returns null)
 // ---------------------------------------------------------------------------
 
-Deno.test("paymentGate: returns null (fail open) when BTC price file missing", async () => {
+Deno.test("paymentGate: returns null (fail open) when BTC price unavailable", async () => {
   _resetPaymentCacheForTesting();
-  // Use a price path that definitely doesn't exist
-  const NONEXISTENT_PRICE_PATH = "/tmp/btc-price-nonexistent-test-gate.json";
-  await removeTempFile(NONEXISTENT_PRICE_PATH);
+  _resetPriceCacheForTesting();
 
   const storage = makeStorage({
     mints: [{ url: "https://mint.example.com" }],
@@ -85,10 +74,8 @@ Deno.test("paymentGate: returns null (fail open) when BTC price file missing", a
   });
   const request = makeRequest();
 
-  // paymentGate uses a hardcoded PRICE_PATH — we need to inject via dependency injection
-  // The function accepts optional deps for test injection
   const result = await paymentGate(request, storage, 1024, {
-    pricePath: NONEXISTENT_PRICE_PATH,
+    getBtcPrice: mockGetBtcPrice(null),
   });
   assertEquals(result, null);
 });
@@ -99,31 +86,26 @@ Deno.test("paymentGate: returns null (fail open) when BTC price file missing", a
 
 Deno.test("paymentGate: returns 402 with X-Cashu header when no proof provided", async () => {
   _resetPaymentCacheForTesting();
-  const tmpPricePath = "/tmp/btc-price-test-gate-402.json";
-  await writeTempPriceFile(tmpPricePath, 50_000);
+  _resetPriceCacheForTesting();
 
-  try {
-    const storage = makeStorage({
-      mints: [{ url: "https://mint.example.com" }],
-      amounts: { upload: 10, mirror: 5 },
-    });
-    const request = makeRequest(); // no X-Cashu header
+  const storage = makeStorage({
+    mints: [{ url: "https://mint.example.com" }],
+    amounts: { upload: 10, mirror: 5 },
+  });
+  const request = makeRequest(); // no X-Cashu header
 
-    const result = await paymentGate(request, storage, 1024 * 1024, {
-      pricePath: tmpPricePath,
-      pricingTomlPath: "/tmp/nonexistent-pricing.toml", // uses defaults
-    });
+  const result = await paymentGate(request, storage, 1024 * 1024, {
+    pricingTomlPath: "/tmp/nonexistent-pricing.toml", // uses defaults
+    getBtcPrice: mockGetBtcPrice(50_000),
+  });
 
-    assertEquals(result !== null, true, "Should return a Response, not null");
-    assertEquals(result!.status, 402);
-    assertEquals(result!.headers.get("Cache-Control"), "no-store");
-    // X-Cashu should be present (NUT-18 encoded PaymentRequest)
-    const xCashu = result!.headers.get("X-Cashu");
-    assertEquals(xCashu !== null, true, "X-Cashu header should be present");
-    assertEquals(xCashu!.startsWith("creq"), true, "X-Cashu should be NUT-18 encoded (creq prefix)");
-  } finally {
-    await removeTempFile(tmpPricePath);
-  }
+  assertEquals(result !== null, true, "Should return a Response, not null");
+  assertEquals(result!.status, 402);
+  assertEquals(result!.headers.get("Cache-Control"), "no-store");
+  // X-Cashu should be present (NUT-18 encoded PaymentRequest)
+  const xCashu = result!.headers.get("X-Cashu");
+  assertEquals(xCashu !== null, true, "X-Cashu header should be present");
+  assertEquals(xCashu!.startsWith("creq"), true, "X-Cashu should be NUT-18 encoded (creq prefix)");
 });
 
 // ---------------------------------------------------------------------------
@@ -132,34 +114,28 @@ Deno.test("paymentGate: returns 402 with X-Cashu header when no proof provided",
 
 Deno.test("paymentGate: returns null when valid Cashu proof provided", async () => {
   _resetPaymentCacheForTesting();
-  const tmpPricePath = "/tmp/btc-price-test-gate-valid.json";
-  await writeTempPriceFile(tmpPricePath, 50_000);
+  _resetPriceCacheForTesting();
 
-  try {
-    const mintUrl = "https://mint.example.com";
-    let validateCalled = false;
+  const mintUrl = "https://mint.example.com";
+  let validateCalled = false;
 
-    const storage = makeStorage({
-      mints: [{ url: mintUrl }],
-      amounts: { upload: 10, mirror: 5 },
-    });
-    const request = makeRequest("cashuBvalid_token_header");
+  const storage = makeStorage({
+    mints: [{ url: mintUrl }],
+    amounts: { upload: 10, mirror: 5 },
+  });
+  const request = makeRequest("cashuBvalid_token_header");
 
-    // Inject a mock validateCashuPayment that returns valid
-    const result = await paymentGate(request, storage, 1024, {
-      pricePath: tmpPricePath,
-      pricingTomlPath: "/tmp/nonexistent-pricing.toml",
-      validatePayment: async (_token: string, _mints: string[], _sats: number) => {
-        validateCalled = true;
-        return { valid: true };
-      },
-    });
+  const result = await paymentGate(request, storage, 1024, {
+    pricingTomlPath: "/tmp/nonexistent-pricing.toml",
+    getBtcPrice: mockGetBtcPrice(50_000),
+    validatePayment: async (_token: string, _mints: string[], _sats: number) => {
+      validateCalled = true;
+      return { valid: true };
+    },
+  });
 
-    assertEquals(result, null, "Valid proof should return null");
-    assertEquals(validateCalled, true, "validatePayment should have been called");
-  } finally {
-    await removeTempFile(tmpPricePath);
-  }
+  assertEquals(result, null, "Valid proof should return null");
+  assertEquals(validateCalled, true, "validatePayment should have been called");
 });
 
 // ---------------------------------------------------------------------------
@@ -168,31 +144,26 @@ Deno.test("paymentGate: returns null when valid Cashu proof provided", async () 
 
 Deno.test("paymentGate: returns 400 with X-Reason when proof invalid", async () => {
   _resetPaymentCacheForTesting();
-  const tmpPricePath = "/tmp/btc-price-test-gate-invalid.json";
-  await writeTempPriceFile(tmpPricePath, 50_000);
+  _resetPriceCacheForTesting();
 
-  try {
-    const storage = makeStorage({
-      mints: [{ url: "https://mint.example.com" }],
-      amounts: { upload: 10, mirror: 5 },
-    });
-    const request = makeRequest("cashuBbad_token");
+  const storage = makeStorage({
+    mints: [{ url: "https://mint.example.com" }],
+    amounts: { upload: 10, mirror: 5 },
+  });
+  const request = makeRequest("cashuBbad_token");
 
-    const result = await paymentGate(request, storage, 1024, {
-      pricePath: tmpPricePath,
-      pricingTomlPath: "/tmp/nonexistent-pricing.toml",
-      validatePayment: async (_token: string, _mints: string[], _sats: number) => {
-        return { valid: false, reason: "proof_invalid_or_spent" };
-      },
-    });
+  const result = await paymentGate(request, storage, 1024, {
+    pricingTomlPath: "/tmp/nonexistent-pricing.toml",
+    getBtcPrice: mockGetBtcPrice(50_000),
+    validatePayment: async (_token: string, _mints: string[], _sats: number) => {
+      return { valid: false, reason: "proof_invalid_or_spent" };
+    },
+  });
 
-    assertEquals(result !== null, true, "Should return a Response");
-    assertEquals(result!.status, 400);
-    assertEquals(result!.headers.get("X-Reason"), "proof_invalid_or_spent");
-    assertEquals(result!.headers.get("Cache-Control"), "no-store");
-  } finally {
-    await removeTempFile(tmpPricePath);
-  }
+  assertEquals(result !== null, true, "Should return a Response");
+  assertEquals(result!.status, 400);
+  assertEquals(result!.headers.get("X-Reason"), "proof_invalid_or_spent");
+  assertEquals(result!.headers.get("Cache-Control"), "no-store");
 });
 
 // ---------------------------------------------------------------------------
@@ -201,30 +172,25 @@ Deno.test("paymentGate: returns 400 with X-Reason when proof invalid", async () 
 
 Deno.test("paymentGate: returns 503 with Retry-After when mint unreachable", async () => {
   _resetPaymentCacheForTesting();
-  const tmpPricePath = "/tmp/btc-price-test-gate-503.json";
-  await writeTempPriceFile(tmpPricePath, 50_000);
+  _resetPriceCacheForTesting();
 
-  try {
-    const storage = makeStorage({
-      mints: [{ url: "https://mint.example.com" }],
-      amounts: { upload: 10, mirror: 5 },
-    });
-    const request = makeRequest("cashuBsome_token");
+  const storage = makeStorage({
+    mints: [{ url: "https://mint.example.com" }],
+    amounts: { upload: 10, mirror: 5 },
+  });
+  const request = makeRequest("cashuBsome_token");
 
-    const result = await paymentGate(request, storage, 1024, {
-      pricePath: tmpPricePath,
-      pricingTomlPath: "/tmp/nonexistent-pricing.toml",
-      validatePayment: async (_token: string, _mints: string[], _sats: number) => {
-        return { valid: false, reason: "mint_unreachable", status: 503 };
-      },
-    });
+  const result = await paymentGate(request, storage, 1024, {
+    pricingTomlPath: "/tmp/nonexistent-pricing.toml",
+    getBtcPrice: mockGetBtcPrice(50_000),
+    validatePayment: async (_token: string, _mints: string[], _sats: number) => {
+      return { valid: false, reason: "mint_unreachable", status: 503 };
+    },
+  });
 
-    assertEquals(result !== null, true, "Should return a Response");
-    assertEquals(result!.status, 503);
-    assertEquals(result!.headers.get("X-Reason"), "mint_unreachable");
-    assertEquals(result!.headers.get("Retry-After"), "30");
-    assertEquals(result!.headers.get("Cache-Control"), "no-store");
-  } finally {
-    await removeTempFile(tmpPricePath);
-  }
+  assertEquals(result !== null, true, "Should return a Response");
+  assertEquals(result!.status, 503);
+  assertEquals(result!.headers.get("X-Reason"), "mint_unreachable");
+  assertEquals(result!.headers.get("Retry-After"), "30");
+  assertEquals(result!.headers.get("Cache-Control"), "no-store");
 });

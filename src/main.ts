@@ -28,8 +28,7 @@ function getConfig(): Config {
 const config = getConfig();
 const storage = new StorageClient(config);
 
-const PRICE_PATH = "/tmp/btc-price.json";
-startPriceFeedCron(PRICE_PATH);
+startPriceFeedCron();
 
 BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
   return route(request, storage, config);

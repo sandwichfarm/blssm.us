@@ -3,15 +3,12 @@ import type { StorageClient } from "../storage/client.ts";
 import type { ValidationResult } from "../types.ts";
 import { loadPaymentConfig, paymentsEnabled } from "./payment-config.ts";
 import { loadCacheConfig } from "./cache-config.ts";
-import { loadPricingConfig, readBtcUsdPrice, computeSatPrice } from "./price-feed.ts";
+import { loadPricingConfig, getBtcUsdPrice, computeSatPrice } from "./price-feed.ts";
 import { buildPaymentRequired } from "./payments.ts";
 import { validateCashuPayment, buildPaymentError } from "./proof-validator.ts";
 
 /** Hardcoded path to the operator pricing TOML (same pattern as PAYMENT_CACHE_TTL_MS in payment-config.ts) */
 const PRICING_TOML_PATH = "config/payment.toml";
-
-/** Hardcoded path where startPriceFeedCron writes the BTC/USD price */
-const PRICE_PATH = "/tmp/btc-price.json";
 
 /**
  * Optional dependency injection for testing.
@@ -19,8 +16,6 @@ const PRICE_PATH = "/tmp/btc-price.json";
  * without needing module-level mocking.
  */
 export interface PaymentGateDeps {
-  /** Override for the BTC price file path (default: PRICE_PATH) */
-  pricePath?: string;
   /** Override for the pricing TOML path (default: PRICING_TOML_PATH) */
   pricingTomlPath?: string;
   /** Override for validateCashuPayment (allows test injection) */
@@ -29,6 +24,8 @@ export interface PaymentGateDeps {
     mints: string[],
     requiredSats: number,
   ) => Promise<ValidationResult>;
+  /** Override for getBtcUsdPrice (allows test injection) */
+  getBtcPrice?: () => Promise<number | null>;
 }
 
 /**
@@ -49,9 +46,9 @@ export async function paymentGate(
   fileSizeBytes: number,
   deps?: PaymentGateDeps,
 ): Promise<Response | null> {
-  const pricePath = deps?.pricePath ?? PRICE_PATH;
   const pricingTomlPath = deps?.pricingTomlPath ?? PRICING_TOML_PATH;
   const validate = deps?.validatePayment ?? validateCashuPayment;
+  const getPrice = deps?.getBtcPrice ?? getBtcUsdPrice;
 
   // Step 1: Load cache config for operator-configured TTL values
   const cacheConfig = await loadCacheConfig(storage);
@@ -64,36 +61,36 @@ export async function paymentGate(
     return null;
   }
 
-  // Step 4: Load pricing config (TOML — defaults used on missing/invalid file)
+  // Step 4: Load pricing config (env vars → TOML fallback)
   const { pricing } = await loadPricingConfig(pricingTomlPath);
 
-  // Step 4: Read BTC/USD price from cron-written file
-  const btcUsd = await readBtcUsdPrice(pricePath);
+  // Step 5: Read BTC/USD price from in-memory cache
+  const btcUsd = await getPrice();
 
-  // Step 5: Fail open if price unavailable (startup race — mint still validates cryptographically)
+  // Step 6: Fail open if price unavailable (startup race — mint still validates cryptographically)
   if (btcUsd === null) {
     return null;
   }
 
-  // Step 6: Extract X-Cashu header from request
+  // Step 7: Extract X-Cashu header from request
   const cashuToken = request.headers.get("X-Cashu");
 
-  // Step 7: No proof provided — return 402 Payment Required
+  // Step 8: No proof provided — return 402 Payment Required
   if (!cashuToken) {
     const mintList = config.mints.map((m) => m.url);
     return buildPaymentRequired(fileSizeBytes, mintList, btcUsd, pricing);
   }
 
-  // Step 8: Validate Cashu proof
+  // Step 9: Validate Cashu proof
   const mintList = config.mints.map((m) => m.url);
   const requiredSats = computeSatPrice(fileSizeBytes, btcUsd, pricing);
   const result = await validate(cashuToken, mintList, requiredSats);
 
-  // Step 9: Invalid proof — return error response (400 or 503)
+  // Step 10: Invalid proof — return error response (400 or 503)
   if (!result.valid) {
     return buildPaymentError(result);
   }
 
-  // Step 10: Valid proof — allow through
+  // Step 11: Valid proof — allow through
   return null;
 }
