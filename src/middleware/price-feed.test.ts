@@ -2,8 +2,10 @@
 import { assertEquals, assertAlmostEquals } from "jsr:@std/assert";
 import {
   computeSatPrice,
+  fetchBtcUsdPrice,
   loadPricingConfig,
   readBtcUsdPrice,
+  startPriceFeedCron,
 } from "./price-feed.ts";
 import type { PricingConfig } from "../types.ts";
 
@@ -208,3 +210,229 @@ Deno.test("readBtcUsdPrice: JSON with non-number btc_usd returns null", async ()
     await Deno.remove(tmpFile);
   }
 });
+
+Deno.test("readBtcUsdPrice: Infinity btc_usd returns null (isFinite guard)", async () => {
+  const tmpFile = await Deno.makeTempFile({ suffix: ".json" });
+  try {
+    await Deno.writeTextFile(tmpFile, JSON.stringify({ btc_usd: Infinity }));
+    const price = await readBtcUsdPrice(tmpFile);
+    assertEquals(price, null);
+  } finally {
+    await Deno.remove(tmpFile);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// fetchBtcUsdPrice tests (stub globalThis.fetch)
+// ---------------------------------------------------------------------------
+
+function stubFetch(handler: (url: string) => Promise<Response>): () => void {
+  const original = globalThis.fetch;
+  globalThis.fetch = ((input: string | URL | Request, _init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    return handler(url);
+  }) as typeof globalThis.fetch;
+  return () => { globalThis.fetch = original; };
+}
+
+function geckoResponse(price: number): Response {
+  return new Response(JSON.stringify({ bitcoin: { usd: price } }), { status: 200 });
+}
+
+function coinbaseResponse(price: number): Response {
+  return new Response(JSON.stringify({ data: { amount: String(price) } }), { status: 200 });
+}
+
+Deno.test("fetchBtcUsdPrice: both sources succeed → returns average", async () => {
+  const restore = stubFetch(async (url) => {
+    if (url.includes("coingecko")) return geckoResponse(100_000);
+    return coinbaseResponse(102_000);
+  });
+  try {
+    const price = await fetchBtcUsdPrice();
+    assertEquals(price, 101_000);
+  } finally {
+    restore();
+  }
+});
+
+Deno.test("fetchBtcUsdPrice: only CoinGecko succeeds → returns gecko price", async () => {
+  const restore = stubFetch(async (url) => {
+    if (url.includes("coingecko")) return geckoResponse(95_000);
+    throw new Error("network error");
+  });
+  try {
+    const price = await fetchBtcUsdPrice();
+    assertEquals(price, 95_000);
+  } finally {
+    restore();
+  }
+});
+
+Deno.test("fetchBtcUsdPrice: only Coinbase succeeds → returns coinbase price", async () => {
+  const restore = stubFetch(async (url) => {
+    if (url.includes("coinbase")) return coinbaseResponse(97_000);
+    throw new Error("network error");
+  });
+  try {
+    const price = await fetchBtcUsdPrice();
+    assertEquals(price, 97_000);
+  } finally {
+    restore();
+  }
+});
+
+Deno.test("fetchBtcUsdPrice: both fail → returns null", async () => {
+  const restore = stubFetch(async (_url) => {
+    throw new Error("network error");
+  });
+  try {
+    const price = await fetchBtcUsdPrice();
+    assertEquals(price, null);
+  } finally {
+    restore();
+  }
+});
+
+Deno.test("fetchBtcUsdPrice: CoinGecko returns !res.ok → falls through to coinbase-only", async () => {
+  const restore = stubFetch(async (url) => {
+    if (url.includes("coingecko")) return new Response("rate limited", { status: 429 });
+    return coinbaseResponse(99_000);
+  });
+  try {
+    const price = await fetchBtcUsdPrice();
+    assertEquals(price, 99_000);
+  } finally {
+    restore();
+  }
+});
+
+Deno.test("fetchBtcUsdPrice: Coinbase returns non-number amount → treated as failure", async () => {
+  const restore = stubFetch(async (url) => {
+    if (url.includes("coingecko")) return geckoResponse(100_000);
+    // amount is not a parseable number string
+    return new Response(JSON.stringify({ data: { amount: "not-a-number" } }), { status: 200 });
+  });
+  try {
+    const price = await fetchBtcUsdPrice();
+    assertEquals(price, 100_000);
+  } finally {
+    restore();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// loadPricingConfig — uncovered internal branches
+// ---------------------------------------------------------------------------
+
+Deno.test("loadPricingConfig: mint entry that is not an object is skipped with warn", async () => {
+  const tmpFile = await Deno.makeTempFile({ suffix: ".toml" });
+  const warns: string[] = [];
+  const origWarn = console.warn;
+  console.warn = (...args: unknown[]) => { warns.push(args.join(" ")); };
+  try {
+    // TOML arrays of inline tables: use mints = [{...}] syntax won't yield bare strings.
+    // But we can make an entry with just a string value via [[mints]] with no url key.
+    // Actually a TOML [[mints]] always produces an object. To get a non-object we'd need
+    // mints = ["bare"] which is a plain array of strings rather than array of tables.
+    await Deno.writeTextFile(tmpFile, `mints = ["bare-string", 42]\n`);
+    const { mints } = await loadPricingConfig(tmpFile);
+    assertEquals(mints, []);
+    assertEquals(warns.some((m) => m.includes("not an object")), true);
+  } finally {
+    console.warn = origWarn;
+    await Deno.remove(tmpFile);
+  }
+});
+
+Deno.test("loadPricingConfig: mint entry with non-string url is skipped with warn", async () => {
+  const tmpFile = await Deno.makeTempFile({ suffix: ".toml" });
+  const warns: string[] = [];
+  const origWarn = console.warn;
+  console.warn = (...args: unknown[]) => { warns.push(args.join(" ")); };
+  try {
+    await Deno.writeTextFile(tmpFile, `
+[[mints]]
+port = 443
+`);
+    const { mints } = await loadPricingConfig(tmpFile);
+    assertEquals(mints, []);
+    assertEquals(warns.some((m) => m.includes("non-string URL")), true);
+  } finally {
+    console.warn = origWarn;
+    await Deno.remove(tmpFile);
+  }
+});
+
+Deno.test("loadPricingConfig: mint entry with malformed URL is skipped with warn", async () => {
+  const tmpFile = await Deno.makeTempFile({ suffix: ".toml" });
+  const warns: string[] = [];
+  const origWarn = console.warn;
+  console.warn = (...args: unknown[]) => { warns.push(args.join(" ")); };
+  try {
+    await Deno.writeTextFile(tmpFile, `
+[[mints]]
+url = "not a valid url at all"
+`);
+    const { mints } = await loadPricingConfig(tmpFile);
+    assertEquals(mints, []);
+    assertEquals(warns.some((m) => m.includes("invalid URL")), true);
+  } finally {
+    console.warn = origWarn;
+    await Deno.remove(tmpFile);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// startPriceFeedCron — smoke tests
+// ---------------------------------------------------------------------------
+
+Deno.test({ name: "startPriceFeedCron: successful tick writes JSON file", sanitizeOps: false, sanitizeResources: false, fn: async () => {
+  const tmpFile = await Deno.makeTempFile({ suffix: ".json" });
+  // Remove it so we can confirm the cron creates it
+  await Deno.remove(tmpFile);
+
+  const restore = stubFetch(async (url) => {
+    if (url.includes("coingecko")) return geckoResponse(100_000);
+    return coinbaseResponse(100_000);
+  });
+  try {
+    startPriceFeedCron(tmpFile);
+    // Wait for the immediate tick to complete
+    await new Promise((r) => setTimeout(r, 200));
+    const text = await Deno.readTextFile(tmpFile);
+    const data = JSON.parse(text);
+    assertEquals(typeof data.btc_usd, "number");
+    assertEquals(data.btc_usd, 100_000);
+    assertEquals(typeof data.updated, "number");
+  } finally {
+    restore();
+    try { await Deno.remove(tmpFile); } catch { /* may not exist */ }
+  }
+}});
+
+Deno.test({ name: "startPriceFeedCron: both fetches fail → file not written, console.warn fires", sanitizeOps: false, sanitizeResources: false, fn: async () => {
+  const tmpFile = await Deno.makeTempFile({ suffix: ".json" });
+  await Deno.remove(tmpFile);
+
+  const warns: string[] = [];
+  const origWarn = console.warn;
+  console.warn = (...args: unknown[]) => { warns.push(args.join(" ")); };
+
+  const restore = stubFetch(async (_url) => {
+    throw new Error("network error");
+  });
+  try {
+    startPriceFeedCron(tmpFile);
+    await new Promise((r) => setTimeout(r, 200));
+    // File should not have been written
+    let exists = true;
+    try { await Deno.stat(tmpFile); } catch { exists = false; }
+    assertEquals(exists, false);
+    assertEquals(warns.some((m) => m.includes("Failed to fetch")), true);
+  } finally {
+    console.warn = origWarn;
+    restore();
+    try { await Deno.remove(tmpFile); } catch { /* may not exist */ }
+  }
+}});

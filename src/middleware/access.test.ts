@@ -206,3 +206,62 @@ Deno.test("Normalizer: payments=null → defaults to false", async () => {
   const cache = await loadAccessConfig(storage);
   assertEquals(cache.config.payments, false);
 });
+
+// ---------------------------------------------------------------------------
+// Cache hit path tests
+// ---------------------------------------------------------------------------
+
+Deno.test("loadAccessConfig: second call within TTL returns cached result (no extra getJson call)", async () => {
+  _resetAccessCacheForTesting();
+  let callCount = 0;
+  const storage: StorageClient = {
+    getJson: async (_path: string) => {
+      callCount++;
+      return { public: true, whitelist: [], blacklist: [], payments: false };
+    },
+  } as unknown as StorageClient;
+  const first = await loadAccessConfig(storage);
+  const second = await loadAccessConfig(storage);
+  assertEquals(callCount, 1);
+  assertEquals(first, second);
+});
+
+// ---------------------------------------------------------------------------
+// filterPubkeys — non-string entries
+// ---------------------------------------------------------------------------
+
+Deno.test("filterPubkeys: non-string entries in whitelist are skipped with console.warn", async () => {
+  _resetAccessCacheForTesting();
+  const warns: string[] = [];
+  const origWarn = console.warn;
+  console.warn = (...args: unknown[]) => { warns.push(args.join(" ")); };
+  try {
+    const storage = makeStorage({
+      public: true,
+      whitelist: [123, null, PUB_CLEAN],
+      blacklist: [],
+    });
+    const cache = await loadAccessConfig(storage);
+    // Only the valid hex-64 entry should survive
+    assertEquals(cache.config.whitelist.length, 1);
+    assertEquals(cache.config.whitelist[0], PUB_CLEAN);
+    // console.warn should have fired for invalid entries
+    assertEquals(warns.filter((m) => m.includes("invalid pubkey")).length, 2);
+  } finally {
+    console.warn = origWarn;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// normalizeAccessConfig — non-null non-object raw
+// ---------------------------------------------------------------------------
+
+Deno.test("Normalizer: raw config is a number → returns defaults", async () => {
+  _resetAccessCacheForTesting();
+  const storage = makeStorage(42);
+  const cache = await loadAccessConfig(storage);
+  assertEquals(cache.config.public, true);
+  assertEquals(cache.config.payments, false);
+  assertEquals(cache.config.whitelist.length, 0);
+  assertEquals(cache.config.blacklist.length, 0);
+});
