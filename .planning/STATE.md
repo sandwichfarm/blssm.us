@@ -5,17 +5,17 @@
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** Server operator can control exactly who is allowed to publish blobs
-**Current focus:** v1.1 Phase 7 — Handler Wiring
+**Current focus:** v1.1 Phase 8 — Cache TTL Wiring (gap closure) — COMPLETE
 
 ## Current Position
 
 Milestone: v1.1 Payments & Cache
-Phase: 7 of 7 (Handler Wiring) — COMPLETE
-Plan: 2 of 2 plans done
-Status: Phase 7 Plan 2 complete (all four write handlers wired with BUD-07 payment flow)
-Last activity: 2026-02-25 — Phase 7 Plan 2 complete (blob-upload, mirror, media, upload-check payment wiring)
+Phase: 8 of 8 (Cache TTL Wiring) — COMPLETE
+Plan: 1 of 1 plans done
+Status: Phase 8 Plan 1 complete (loadCacheConfig wired into paymentGate, CACHE-01 + CACHE-02 closed)
+Last activity: 2026-02-25 — Phase 8 Plan 1 complete (cache TTL wiring gap closure)
 
-Progress: [██████████] 100% (11/11 total plans complete across all milestones)
+Progress: [██████████] 100% (12/12 total plans complete across all milestones)
 
 ## Performance Metrics
 
@@ -37,6 +37,7 @@ Progress: [██████████] 100% (11/11 total plans complete acro
 | 07-handler-wiring | 2 (of 2) | 4 min | 2 min |
 
 *Updated after each plan completion*
+| Phase 08-cache-ttl-wiring P01 | 4 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,7 @@ Recent decisions affecting v1.1:
 - Mirror SC4 exception: JSON body parsed before access check to get URL for remote HEAD pricing
 - HEAD preflights use buildPaymentRequired() directly, never paymentGate() — proof consumption forbidden on HEAD
 - X-Content-Length (not Content-Length) used for HEAD preflight size — BUD-06 HEAD convention
+- [Phase 08-cache-ttl-wiring]: paymentGate() is the single wiring point for loadCacheConfig; paymentTtl threaded to loadPaymentConfig only
 
 ### Pending Todos
 
@@ -90,5 +92,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 07-02-PLAN.md (all four write handlers wired with BUD-07 payment flow)
+Stopped at: Completed 08-01-PLAN.md (loadCacheConfig wired into paymentGate; CACHE-01 + CACHE-02 closed)
 Resume file: None

@@ -26,7 +26,7 @@ Full details: `milestones/v1.0-ROADMAP.md`
 - [x] **Phase 5: Access Control + Cache TTL** - Extend checkAccess() with public+payments mode and wire configurable TTL (completed 2026-02-24)
 - [x] **Phase 6: Payment Middleware** - Implement Cashu verification, BUD-07 compliant 402 responses, and payment error handling (1/3 plans done) (completed 2026-02-24)
 - [x] **Phase 7: Handler Wiring** - Wire payment gate into all five write handlers and integration-test the full 402 flow (completed 2026-02-24)
-- [ ] **Phase 8: Cache TTL Wiring** - Wire loadCacheConfig into runtime call sites so operator TTL config takes effect (gap closure)
+- [x] **Phase 8: Cache TTL Wiring** - Wire loadCacheConfig into runtime call sites so operator TTL config takes effect (gap closure) (completed 2026-02-25)
 
 ## Phase Details
 
@@ -98,7 +98,7 @@ Plans:
   2. Changing accessTtl in config/cache.json changes the actual cache duration for access config lookups
   3. Changing paymentTtl in config/cache.json changes the actual cache duration for payment config lookups
   4. Changing blockedTtl in config/cache.json changes the actual cache duration for blocked hash lookups
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
 - [ ] 08-01-PLAN.md — Wire loadCacheConfig into paymentGate, thread accessTtl/paymentTtl/blockedTtl to all three caches
 
@@ -116,4 +116,4 @@ Phases execute in numeric order: 4 → 5 → 6 → 7 → 8
 | 5. Access Control + Cache TTL | 2/2 | Complete    | 2026-02-24 | - |
 | 6. Payment Middleware | 3/3 | Complete    | 2026-02-24 | - |
 | 7. Handler Wiring | 2/2 | Complete   | 2026-02-24 | - |
-| 8. Cache TTL Wiring | 0/? | Not started | - | - |
+| 8. Cache TTL Wiring | 1/1 | Complete   | 2026-02-25 | - |
