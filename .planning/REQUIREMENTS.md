@@ -31,8 +31,8 @@ Requirements for BUD-07 payment middleware, public+payments access mode, and con
 
 ### Cache
 
-- [ ] **CACHE-01**: Operator can set cache TTL via config (including TTL=0 for always-fresh)
-- [ ] **CACHE-02**: Configurable TTL applies to both access config and blocked hash caches
+- [x] **CACHE-01**: Operator can set cache TTL via config (including TTL=0 for always-fresh)
+- [x] **CACHE-02**: Configurable TTL applies to both access config and blocked hash caches
 
 ## Future Requirements
 
@@ -77,8 +77,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ACL-03 | Phase 5 | Complete |
 | ACL-04 | Phase 5 | Complete |
 | ACL-05 | Phase 5 | Complete |
-| CACHE-01 | Phase 8 (gap closure) | Pending |
-| CACHE-02 | Phase 8 (gap closure) | Pending |
+| CACHE-01 | Phase 8 (gap closure) | Complete |
+| CACHE-02 | Phase 8 (gap closure) | Complete |
 
 **Coverage:**
 - v1.1 requirements: 15 total
