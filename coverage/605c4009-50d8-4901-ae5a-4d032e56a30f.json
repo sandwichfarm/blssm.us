@@ -1,0 +1,198 @@
+{
+  "scriptId": "388",
+  "url": "file:///home/sandwich/.cache/deno/npm/registry.npmjs.org/@noble/curves/2.0.1/abstract/hash-to-curve.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 8460,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "i2osp",
+      "ranges": [
+        {
+          "startOffset": 342,
+          "endOffset": 714,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "strxor",
+      "ranges": [
+        {
+          "startOffset": 715,
+          "endOffset": 875,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "normDST",
+      "ranges": [
+        {
+          "startOffset": 1023,
+          "endOffset": 1227,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "expand_message_xmd",
+      "ranges": [
+        {
+          "startOffset": 1420,
+          "endOffset": 2517,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "expand_message_xof",
+      "ranges": [
+        {
+          "startOffset": 2890,
+          "endOffset": 3695,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hash_to_field",
+      "ranges": [
+        {
+          "startOffset": 4165,
+          "endOffset": 5399,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isogenyMap",
+      "ranges": [
+        {
+          "startOffset": 5407,
+          "endOffset": 6105,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 5501,
+          "endOffset": 5531,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 5545,
+          "endOffset": 6102,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createHasher",
+      "ranges": [
+        {
+          "startOffset": 6270,
+          "endOffset": 8418,
+          "count": 1
+        },
+        {
+          "startOffset": 6373,
+          "endOffset": 6421,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "map",
+      "ranges": [
+        {
+          "startOffset": 6426,
+          "endOffset": 6501,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "clear",
+      "ranges": [
+        {
+          "startOffset": 6506,
+          "endOffset": 6720,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hashToCurve",
+      "ranges": [
+        {
+          "startOffset": 6800,
+          "endOffset": 7057,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "encodeToCurve",
+      "ranges": [
+        {
+          "startOffset": 7067,
+          "endOffset": 7376,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "mapToCurve",
+      "ranges": [
+        {
+          "startOffset": 7423,
+          "endOffset": 8007,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hashToScalar",
+      "ranges": [
+        {
+          "startOffset": 8155,
+          "endOffset": 8408,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

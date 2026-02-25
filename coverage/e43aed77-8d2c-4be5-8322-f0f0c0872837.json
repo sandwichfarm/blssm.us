@@ -1,0 +1,910 @@
+{
+  "scriptId": "379",
+  "url": "file:///home/sandwich/.cache/deno/npm/registry.npmjs.org/@scure/base/2.0.0/index.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 24445,
+          "count": 1
+        },
+        {
+          "startOffset": 14151,
+          "endOffset": 14269,
+          "count": 0
+        },
+        {
+          "startOffset": 15178,
+          "endOffset": 15296,
+          "count": 0
+        },
+        {
+          "startOffset": 23154,
+          "endOffset": 23433,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "isBytes",
+      "ranges": [
+        {
+          "startOffset": 69,
+          "endOffset": 194,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "abytes",
+      "ranges": [
+        {
+          "startOffset": 235,
+          "endOffset": 326,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isArrayOf",
+      "ranges": [
+        {
+          "startOffset": 327,
+          "endOffset": 631,
+          "count": 12
+        },
+        {
+          "startOffset": 400,
+          "endOffset": 413,
+          "count": 0
+        },
+        {
+          "startOffset": 448,
+          "endOffset": 460,
+          "count": 0
+        },
+        {
+          "startOffset": 548,
+          "endOffset": 629,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 506,
+          "endOffset": 540,
+          "count": 510
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 585,
+          "endOffset": 621,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "afn",
+      "ranges": [
+        {
+          "startOffset": 632,
+          "endOffset": 755,
+          "count": 6
+        },
+        {
+          "startOffset": 699,
+          "endOffset": 736,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "astr",
+      "ranges": [
+        {
+          "startOffset": 756,
+          "endOffset": 893,
+          "count": 14
+        },
+        {
+          "startOffset": 829,
+          "endOffset": 874,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "anumber",
+      "ranges": [
+        {
+          "startOffset": 894,
+          "endOffset": 1001,
+          "count": 16
+        },
+        {
+          "startOffset": 958,
+          "endOffset": 999,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "aArr",
+      "ranges": [
+        {
+          "startOffset": 1002,
+          "endOffset": 1100,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "astrArr",
+      "ranges": [
+        {
+          "startOffset": 1101,
+          "endOffset": 1232,
+          "count": 12
+        },
+        {
+          "startOffset": 1175,
+          "endOffset": 1230,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "anumArr",
+      "ranges": [
+        {
+          "startOffset": 1233,
+          "endOffset": 1365,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "chain",
+      "ranges": [
+        {
+          "startOffset": 1398,
+          "endOffset": 1835,
+          "count": 13
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "id",
+      "ranges": [
+        {
+          "startOffset": 1439,
+          "endOffset": 1447,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "wrap",
+      "ranges": [
+        {
+          "startOffset": 1518,
+          "endOffset": 1542,
+          "count": 80
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1528,
+          "endOffset": 1542,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1638,
+          "endOffset": 1653,
+          "count": 40
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1768,
+          "endOffset": 1783,
+          "count": 40
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "alphabet",
+      "ranges": [
+        {
+          "startOffset": 1988,
+          "endOffset": 3006,
+          "count": 12
+        },
+        {
+          "startOffset": 2110,
+          "endOffset": 2119,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2254,
+          "endOffset": 2270,
+          "count": 510
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "encode",
+      "ranges": [
+        {
+          "startOffset": 2303,
+          "endOffset": 2624,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decode",
+      "ranges": [
+        {
+          "startOffset": 2642,
+          "endOffset": 2996,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "join",
+      "ranges": [
+        {
+          "startOffset": 3039,
+          "endOffset": 3357,
+          "count": 12
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "encode",
+      "ranges": [
+        {
+          "startOffset": 3129,
+          "endOffset": 3233,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decode",
+      "ranges": [
+        {
+          "startOffset": 3251,
+          "endOffset": 3347,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "padding",
+      "ranges": [
+        {
+          "startOffset": 3444,
+          "endOffset": 4292,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "encode",
+      "ranges": [
+        {
+          "startOffset": 3546,
+          "endOffset": 3717,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decode",
+      "ranges": [
+        {
+          "startOffset": 3727,
+          "endOffset": 4282,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "normalize",
+      "ranges": [
+        {
+          "startOffset": 4325,
+          "endOffset": 4427,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "encode",
+      "ranges": [
+        {
+          "startOffset": 4384,
+          "endOffset": 4398,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decode",
+      "ranges": [
+        {
+          "startOffset": 4408,
+          "endOffset": 4422,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "convertRadix",
+      "ranges": [
+        {
+          "startOffset": 4468,
+          "endOffset": 6165,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "gcd",
+      "ranges": [
+        {
+          "startOffset": 6178,
+          "endOffset": 6217,
+          "count": 96
+        },
+        {
+          "startOffset": 6197,
+          "endOffset": 6200,
+          "count": 20
+        },
+        {
+          "startOffset": 6201,
+          "endOffset": 6216,
+          "count": 76
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "radix2carry",
+      "ranges": [
+        {
+          "startOffset": 6266,
+          "endOffset": 6307,
+          "count": 20
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 6341,
+          "endOffset": 6443,
+          "count": 1
+        },
+        {
+          "startOffset": 6408,
+          "endOffset": 6425,
+          "count": 40
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "convertRadix2",
+      "ranges": [
+        {
+          "startOffset": 6513,
+          "endOffset": 7970,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "radix",
+      "ranges": [
+        {
+          "startOffset": 8003,
+          "endOffset": 8456,
+          "count": 3
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "encode",
+      "ranges": [
+        {
+          "startOffset": 8097,
+          "endOffset": 8291,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decode",
+      "ranges": [
+        {
+          "startOffset": 8309,
+          "endOffset": 8446,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "radix2",
+      "ranges": [
+        {
+          "startOffset": 8648,
+          "endOffset": 9333,
+          "count": 10
+        },
+        {
+          "startOffset": 8751,
+          "endOffset": 8804,
+          "count": 0
+        },
+        {
+          "startOffset": 8877,
+          "endOffset": 8919,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "encode",
+      "ranges": [
+        {
+          "startOffset": 8949,
+          "endOffset": 9156,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decode",
+      "ranges": [
+        {
+          "startOffset": 9174,
+          "endOffset": 9323,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "unsafeWrapper",
+      "ranges": [
+        {
+          "startOffset": 9334,
+          "endOffset": 9503,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 9387,
+          "endOffset": 9500,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "checksum",
+      "ranges": [
+        {
+          "startOffset": 9504,
+          "endOffset": 10414,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "encode",
+      "ranges": [
+        {
+          "startOffset": 9585,
+          "endOffset": 9918,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decode",
+      "ranges": [
+        {
+          "startOffset": 9928,
+          "endOffset": 10404,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 12951,
+          "endOffset": 13014,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 13175,
+          "endOffset": 13282,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "decodeBase64Builtin",
+      "ranges": [
+        {
+          "startOffset": 13315,
+          "endOffset": 13634,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "encode",
+      "ranges": [
+        {
+          "startOffset": 14045,
+          "endOffset": 14090,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decode",
+      "ranges": [
+        {
+          "startOffset": 14096,
+          "endOffset": 14147,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "encode",
+      "ranges": [
+        {
+          "startOffset": 15048,
+          "endOffset": 15118,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decode",
+      "ranges": [
+        {
+          "startOffset": 15124,
+          "endOffset": 15174,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "genBase58",
+      "ranges": [
+        {
+          "startOffset": 15790,
+          "endOffset": 15840,
+          "count": 3
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "encode",
+      "ranges": [
+        {
+          "startOffset": 16824,
+          "endOffset": 17082,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decode",
+      "ranges": [
+        {
+          "startOffset": 17088,
+          "endOffset": 17648,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createBase58check",
+      "ranges": [
+        {
+          "startOffset": 17782,
+          "endOffset": 17852,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 17812,
+          "endOffset": 17842,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "bech32Polymod",
+      "ranges": [
+        {
+          "startOffset": 18133,
+          "endOffset": 18383,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "bechChecksum",
+      "ranges": [
+        {
+          "startOffset": 18384,
+          "endOffset": 19075,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "genBech32",
+      "ranges": [
+        {
+          "startOffset": 19108,
+          "endOffset": 21693,
+          "count": 2
+        },
+        {
+          "startOffset": 19188,
+          "endOffset": 19191,
+          "count": 1
+        },
+        {
+          "startOffset": 19192,
+          "endOffset": 19204,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "encode",
+      "ranges": [
+        {
+          "startOffset": 19366,
+          "endOffset": 20063,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decode",
+      "ranges": [
+        {
+          "startOffset": 20068,
+          "endOffset": 21208,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decodeToBytes",
+      "ranges": [
+        {
+          "startOffset": 21261,
+          "endOffset": 21409,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "encodeFromBytes",
+      "ranges": [
+        {
+          "startOffset": 21414,
+          "endOffset": 21508,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "encode",
+      "ranges": [
+        {
+          "startOffset": 22372,
+          "endOffset": 22412,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decode",
+      "ranges": [
+        {
+          "startOffset": 22426,
+          "endOffset": 22464,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 22617,
+          "endOffset": 22718,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "encode",
+      "ranges": [
+        {
+          "startOffset": 22767,
+          "endOffset": 22818,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decode",
+      "ranges": [
+        {
+          "startOffset": 22824,
+          "endOffset": 22883,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 23223,
+          "endOffset": 23431,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "bytesToString",
+      "ranges": [
+        {
+          "startOffset": 23720,
+          "endOffset": 23982,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "stringToBytes",
+      "ranges": [
+        {
+          "startOffset": 24121,
+          "endOffset": 24355,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

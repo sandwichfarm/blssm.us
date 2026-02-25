@@ -1,0 +1,105 @@
+{
+  "scriptId": "373",
+  "url": "file:///home/sandwich/Develop/blssm.us/src/middleware/price-feed.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 7415,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "computeSatPrice",
+      "ranges": [
+        {
+          "startOffset": 789,
+          "endOffset": 1132,
+          "count": 7
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "fetchCoinGecko",
+      "ranges": [
+        {
+          "startOffset": 1245,
+          "endOffset": 1662,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "fetchCoinbase",
+      "ranges": [
+        {
+          "startOffset": 1774,
+          "endOffset": 2216,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "fetchBtcUsdPrice",
+      "ranges": [
+        {
+          "startOffset": 2419,
+          "endOffset": 2915,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "readBtcUsdPrice",
+      "ranges": [
+        {
+          "startOffset": 3173,
+          "endOffset": 3455,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "startPriceFeedCron",
+      "ranges": [
+        {
+          "startOffset": 3935,
+          "endOffset": 4525,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "loadPricingConfig",
+      "ranges": [
+        {
+          "startOffset": 4965,
+          "endOffset": 6547,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "parsePricingSection",
+      "ranges": [
+        {
+          "startOffset": 6688,
+          "endOffset": 7414,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

@@ -1,0 +1,220 @@
+{
+  "scriptId": "380",
+  "url": "file:///home/sandwich/.cache/deno/npm/registry.npmjs.org/@noble/curves/2.0.1/secp256k1.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 11861,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "sqrtMod",
+      "ranges": [
+        {
+          "startOffset": 1976,
+          "endOffset": 2969,
+          "count": 1
+        },
+        {
+          "startOffset": 2907,
+          "endOffset": 2950,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "taggedHash",
+      "ranges": [
+        {
+          "startOffset": 4097,
+          "endOffset": 4397,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "pointToBytes",
+      "ranges": [
+        {
+          "startOffset": 4504,
+          "endOffset": 4543,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hasEven",
+      "ranges": [
+        {
+          "startOffset": 4561,
+          "endOffset": 4583,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "schnorrGetExtPubKey",
+      "ranges": [
+        {
+          "startOffset": 4622,
+          "endOffset": 4905,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "lift_x",
+      "ranges": [
+        {
+          "startOffset": 5042,
+          "endOffset": 5575,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "challenge",
+      "ranges": [
+        {
+          "startOffset": 5675,
+          "endOffset": 5783,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "schnorrGetPublicKey",
+      "ranges": [
+        {
+          "startOffset": 5861,
+          "endOffset": 6006,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "schnorrSign",
+      "ranges": [
+        {
+          "startOffset": 6200,
+          "endOffset": 7333,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "schnorrVerify",
+      "ranges": [
+        {
+          "startOffset": 7460,
+          "endOffset": 8572,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 9072,
+          "endOffset": 9788,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "randomSecretKey",
+      "ranges": [
+        {
+          "startOffset": 9156,
+          "endOffset": 9255,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 9825,
+          "endOffset": 11177,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 11145,
+          "endOffset": 11175,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 11158,
+          "endOffset": 11174,
+          "count": 15
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 11214,
+          "endOffset": 11393,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 11520,
+          "endOffset": 11819,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createHasher.DST",
+      "ranges": [
+        {
+          "startOffset": 11548,
+          "endOffset": 11643,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

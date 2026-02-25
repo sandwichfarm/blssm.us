@@ -1,0 +1,207 @@
+{
+  "scriptId": "335",
+  "url": "file:///home/sandwich/Develop/blssm.us/src/middleware/payment-gate.test.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 8632,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "makeStorage",
+      "ranges": [
+        {
+          "startOffset": 439,
+          "endOffset": 628,
+          "count": 7
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getJson",
+      "ranges": [
+        {
+          "startOffset": 499,
+          "endOffset": 621,
+          "count": 8
+        },
+        {
+          "startOffset": 559,
+          "endOffset": 596,
+          "count": 7
+        },
+        {
+          "startOffset": 596,
+          "endOffset": 620,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "makeRequest",
+      "ranges": [
+        {
+          "startOffset": 690,
+          "endOffset": 916,
+          "count": 7
+        },
+        {
+          "startOffset": 781,
+          "endOffset": 824,
+          "count": 3
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "writeTempPriceFile",
+      "ranges": [
+        {
+          "startOffset": 967,
+          "endOffset": 1124,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "removeTempFile",
+      "ranges": [
+        {
+          "startOffset": 1159,
+          "endOffset": 1272,
+          "count": 5
+        },
+        {
+          "startOffset": 1233,
+          "endOffset": 1238,
+          "count": 4
+        },
+        {
+          "startOffset": 1238,
+          "endOffset": 1270,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1568,
+          "endOffset": 1845,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1927,
+          "endOffset": 2134,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2432,
+          "endOffset": 3143,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 3473,
+          "endOffset": 4583,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 4878,
+          "endOffset": 5928,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "validatePayment",
+      "ranges": [
+        {
+          "startOffset": 5591,
+          "endOffset": 5712,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 6203,
+          "endOffset": 7239,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "validatePayment",
+      "ranges": [
+        {
+          "startOffset": 6787,
+          "endOffset": 6922,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 7526,
+          "endOffset": 8629,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "validatePayment",
+      "ranges": [
+        {
+          "startOffset": 8107,
+          "endOffset": 8259,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

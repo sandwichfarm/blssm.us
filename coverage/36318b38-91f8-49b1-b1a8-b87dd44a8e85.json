@@ -1,0 +1,149 @@
+{
+  "scriptId": "365",
+  "url": "file:///home/sandwich/Develop/blssm.us/src/util.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2991,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "sha256Hex",
+      "ranges": [
+        {
+          "startOffset": 114,
+          "endOffset": 177,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 303,
+          "endOffset": 342,
+          "count": 256
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "bytesToHex",
+      "ranges": [
+        {
+          "startOffset": 387,
+          "endOffset": 524,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hexToBytes",
+      "ranges": [
+        {
+          "startOffset": 567,
+          "endOffset": 763,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "toBase64",
+      "ranges": [
+        {
+          "startOffset": 806,
+          "endOffset": 966,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "fromBase64",
+      "ranges": [
+        {
+          "startOffset": 1016,
+          "endOffset": 1218,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isValidSha256",
+      "ranges": [
+        {
+          "startOffset": 1389,
+          "endOffset": 1451,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isValidPubkey",
+      "ranges": [
+        {
+          "startOffset": 1523,
+          "endOffset": 1589,
+          "count": 10
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "prefix",
+      "ranges": [
+        {
+          "startOffset": 1648,
+          "endOffset": 1704,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "guessMimeType",
+      "ranges": [
+        {
+          "startOffset": 1778,
+          "endOffset": 2585,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "jsonResponse",
+      "ranges": [
+        {
+          "startOffset": 2643,
+          "endOffset": 2846,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "errorResponse",
+      "ranges": [
+        {
+          "startOffset": 2891,
+          "endOffset": 2990,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

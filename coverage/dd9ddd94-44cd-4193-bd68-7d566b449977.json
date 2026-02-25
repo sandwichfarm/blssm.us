@@ -1,0 +1,83 @@
+{
+  "scriptId": "374",
+  "url": "file:///home/sandwich/.cache/deno/npm/registry.npmjs.org/@noble/hashes/1.6.1/esm/_assert.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1485,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "anumber",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 130,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isBytes",
+      "ranges": [
+        {
+          "startOffset": 152,
+          "endOffset": 277,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "abytes",
+      "ranges": [
+        {
+          "startOffset": 278,
+          "endOffset": 538,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "ahash",
+      "ranges": [
+        {
+          "startOffset": 539,
+          "endOffset": 754,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "aexists",
+      "ranges": [
+        {
+          "startOffset": 755,
+          "endOffset": 1006,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "aoutput",
+      "ranges": [
+        {
+          "startOffset": 1007,
+          "endOffset": 1218,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

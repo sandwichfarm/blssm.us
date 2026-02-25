@@ -1,0 +1,250 @@
+{
+  "scriptId": "337",
+  "url": "file:///home/sandwich/Develop/blssm.us/src/middleware/price-feed.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 7415,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "computeSatPrice",
+      "ranges": [
+        {
+          "startOffset": 789,
+          "endOffset": 1132,
+          "count": 6
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "fetchCoinGecko",
+      "ranges": [
+        {
+          "startOffset": 1245,
+          "endOffset": 1662,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "fetchCoinbase",
+      "ranges": [
+        {
+          "startOffset": 1774,
+          "endOffset": 2216,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "fetchBtcUsdPrice",
+      "ranges": [
+        {
+          "startOffset": 2419,
+          "endOffset": 2915,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "readBtcUsdPrice",
+      "ranges": [
+        {
+          "startOffset": 3173,
+          "endOffset": 3455,
+          "count": 4
+        },
+        {
+          "startOffset": 3277,
+          "endOffset": 3385,
+          "count": 3
+        },
+        {
+          "startOffset": 3385,
+          "endOffset": 3403,
+          "count": 1
+        },
+        {
+          "startOffset": 3404,
+          "endOffset": 3411,
+          "count": 1
+        },
+        {
+          "startOffset": 3412,
+          "endOffset": 3418,
+          "count": 1
+        },
+        {
+          "startOffset": 3424,
+          "endOffset": 3453,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "startPriceFeedCron",
+      "ranges": [
+        {
+          "startOffset": 3935,
+          "endOffset": 4525,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "loadPricingConfig",
+      "ranges": [
+        {
+          "startOffset": 4965,
+          "endOffset": 6547,
+          "count": 5
+        },
+        {
+          "startOffset": 5080,
+          "endOffset": 5108,
+          "count": 4
+        },
+        {
+          "startOffset": 5108,
+          "endOffset": 5266,
+          "count": 1
+        },
+        {
+          "startOffset": 5266,
+          "endOffset": 5304,
+          "count": 4
+        },
+        {
+          "startOffset": 5306,
+          "endOffset": 5400,
+          "count": 0
+        },
+        {
+          "startOffset": 5400,
+          "endOffset": 6393,
+          "count": 4
+        },
+        {
+          "startOffset": 5611,
+          "endOffset": 6389,
+          "count": 6
+        },
+        {
+          "startOffset": 5660,
+          "endOffset": 5793,
+          "count": 0
+        },
+        {
+          "startOffset": 5880,
+          "endOffset": 5996,
+          "count": 0
+        },
+        {
+          "startOffset": 6088,
+          "endOffset": 6220,
+          "count": 1
+        },
+        {
+          "startOffset": 6229,
+          "endOffset": 6360,
+          "count": 0
+        },
+        {
+          "startOffset": 6360,
+          "endOffset": 6389,
+          "count": 5
+        },
+        {
+          "startOffset": 6393,
+          "endOffset": 6546,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "parsePricingSection",
+      "ranges": [
+        {
+          "startOffset": 6688,
+          "endOffset": 7414,
+          "count": 4
+        },
+        {
+          "startOffset": 6735,
+          "endOffset": 6761,
+          "count": 3
+        },
+        {
+          "startOffset": 6763,
+          "endOffset": 6813,
+          "count": 1
+        },
+        {
+          "startOffset": 6813,
+          "endOffset": 7019,
+          "count": 3
+        },
+        {
+          "startOffset": 7020,
+          "endOffset": 7036,
+          "count": 3
+        },
+        {
+          "startOffset": 7037,
+          "endOffset": 7066,
+          "count": 2
+        },
+        {
+          "startOffset": 7067,
+          "endOffset": 7087,
+          "count": 2
+        },
+        {
+          "startOffset": 7088,
+          "endOffset": 7101,
+          "count": 2
+        },
+        {
+          "startOffset": 7102,
+          "endOffset": 7133,
+          "count": 2
+        },
+        {
+          "startOffset": 7134,
+          "endOffset": 7156,
+          "count": 2
+        },
+        {
+          "startOffset": 7157,
+          "endOffset": 7172,
+          "count": 2
+        },
+        {
+          "startOffset": 7174,
+          "endOffset": 7298,
+          "count": 1
+        },
+        {
+          "startOffset": 7298,
+          "endOffset": 7413,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "scriptId": "371",
+  "url": "file:///home/sandwich/.cache/deno/npm/registry.npmjs.org/@noble/hashes/1.6.1/esm/sha256.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 4965,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "SHA256",
+      "ranges": [
+        {
+          "startOffset": 1711,
+          "endOffset": 2185,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "get",
+      "ranges": [
+        {
+          "startOffset": 2190,
+          "endOffset": 2293,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "set",
+      "ranges": [
+        {
+          "startOffset": 2321,
+          "endOffset": 2548,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "process",
+      "ranges": [
+        {
+          "startOffset": 2553,
+          "endOffset": 4075,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "roundClean",
+      "ranges": [
+        {
+          "startOffset": 4080,
+          "endOffset": 4126,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "destroy",
+      "ranges": [
+        {
+          "startOffset": 4131,
+          "endOffset": 4219,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "SHA224",
+      "ranges": [
+        {
+          "startOffset": 4333,
+          "endOffset": 4664,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 4801,
+          "endOffset": 4819,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 4910,
+          "endOffset": 4928,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "scriptId": "375",
+  "url": "file:///home/sandwich/.cache/deno/npm/registry.npmjs.org/@noble/hashes/1.6.1/esm/cryptoNode.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 433,
+          "count": 1
+        },
+        {
+          "startOffset": 307,
+          "endOffset": 393,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

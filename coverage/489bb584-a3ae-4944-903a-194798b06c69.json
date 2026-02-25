@@ -1,0 +1,28 @@
+{
+  "scriptId": "338",
+  "url": "file:///home/sandwich/Develop/blssm.us/src/middleware/payments.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1121,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "buildPaymentRequired",
+      "ranges": [
+        {
+          "startOffset": 433,
+          "endOffset": 1120,
+          "count": 7
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

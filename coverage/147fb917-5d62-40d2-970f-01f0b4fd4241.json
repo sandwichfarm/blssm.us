@@ -1,0 +1,116 @@
+{
+  "scriptId": "391",
+  "url": "file:///home/sandwich/.cache/deno/npm/registry.npmjs.org/@noble/hashes/2.0.1/_md.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 5615,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "Chi",
+      "ranges": [
+        {
+          "startOffset": 164,
+          "endOffset": 220,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "Maj",
+      "ranges": [
+        {
+          "startOffset": 286,
+          "endOffset": 351,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 486,
+          "endOffset": 678,
+          "count": 9
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "HashMD",
+      "ranges": [
+        {
+          "startOffset": 684,
+          "endOffset": 966,
+          "count": 9
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "update",
+      "ranges": [
+        {
+          "startOffset": 971,
+          "endOffset": 1895,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "digestInto",
+      "ranges": [
+        {
+          "startOffset": 1900,
+          "endOffset": 3639,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "digest",
+      "ranges": [
+        {
+          "startOffset": 3644,
+          "endOffset": 3829,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "_cloneInto",
+      "ranges": [
+        {
+          "startOffset": 3834,
+          "endOffset": 4204,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "clone",
+      "ranges": [
+        {
+          "startOffset": 4209,
+          "endOffset": 4258,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}
