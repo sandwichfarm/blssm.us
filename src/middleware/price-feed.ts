@@ -35,6 +35,13 @@ let priceFetchInFlight: Promise<number | null> | null = null;
 /** How long before the BTC price is considered stale (5 min) */
 const PRICE_STALE_MS = 300_000;
 
+/** Timestamp (epoch ms) when BTC_USD_PRICE env var was last written by admin-refresh or deploy.
+ *  `null` means the env var was present at cold-start (unknown age) — treated as valid until first refresh. */
+let envPriceSetAt: number | null = null;
+
+/** How long an env-var price is trusted (10 min — 2× the cron interval to tolerate one missed tick) */
+const ENV_PRICE_STALE_MS = 600_000;
+
 /**
  * Compute the sat price for a given file size.
  * Formula: ceil((fileSizeGb * cost_per_gb_usd * (1 + margin) * (1 + slippage)) / btcUsdPrice * 100_000_000)
@@ -137,6 +144,8 @@ export async function fetchBtcUsdPrice(): Promise<number | null> {
  */
 export function setPriceCache(price: number): void {
   priceCache = { btcUsd: price, fetchedAt: Date.now() };
+  // Also refresh env-var staleness timestamp (admin-refresh sets both env var + cache)
+  envPriceSetAt = Date.now();
 }
 
 /**
@@ -150,7 +159,15 @@ export async function getBtcUsdPrice(): Promise<number | null> {
   if (envPrice) {
     const parsed = Number(envPrice);
     if (isFinite(parsed) && parsed > 0) {
-      return parsed;
+      // First time seeing the env var (cold-start): trust it, record now as baseline
+      if (envPriceSetAt === null) {
+        envPriceSetAt = Date.now();
+      }
+      // Only use env var if it was set recently (within 2× cron interval)
+      if ((Date.now() - envPriceSetAt) < ENV_PRICE_STALE_MS) {
+        return parsed;
+      }
+      // Stale — fall through to cache / fetch
     }
   }
 
@@ -382,5 +399,6 @@ export function _resetPriceCacheForTesting(): void {
   priceCache = null;
   priceFetchInFlight = null;
   pricingCache = null;
+  envPriceSetAt = null;
   delete process.env["BTC_USD_PRICE"];
 }

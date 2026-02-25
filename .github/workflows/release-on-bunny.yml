@@ -43,13 +43,17 @@ jobs:
 
           TOML="config/payment.toml"
 
-          # Mint URLs — collect all url = "..." lines into comma-separated string
-          MINT_URLS=$(grep -oP 'url\s*=\s*"\K[^"]+' "$TOML" | paste -sd, -)
-
-          # Pricing values
-          COST=$(grep -oP 'cost_per_gb_usd\s*=\s*\K[\d.]+' "$TOML")
-          MARGIN=$(grep -oP 'profit_margin_pct\s*=\s*\K[\d.]+' "$TOML")
-          SLIPPAGE=$(grep -oP 'slippage_premium_pct\s*=\s*\K[\d.]+' "$TOML")
+          # Parse TOML properly via deno (robust against formatting changes)
+          eval "$(deno eval --ext=ts "
+            import { parse } from '@std/toml';
+            const raw = parse(await Deno.readTextFile('$TOML')) as Record<string, unknown>;
+            const mints = (raw.mints as Array<{url: string}> || []).map(m => m.url).join(',');
+            const p = (raw.pricing || {}) as Record<string, number>;
+            console.log('MINT_URLS=' + JSON.stringify(mints));
+            console.log('COST=' + (p.cost_per_gb_usd ?? '0.02'));
+            console.log('MARGIN=' + (p.profit_margin_pct ?? '0.20'));
+            console.log('SLIPPAGE=' + (p.slippage_premium_pct ?? '0.05'));
+          ")"
 
           upsert_var "PRICING_MINT_URLS" "$MINT_URLS"
           upsert_var "PRICING_COST_PER_GB_USD" "${COST:-0.02}"

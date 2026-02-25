@@ -156,10 +156,10 @@ export async function validateCashuPayment(
  * Uses X-Reason header per BUD-07/existing project pattern.
  * Always includes Cache-Control: no-store.
  */
-export function buildPaymentError(result: ValidationResult): Response {
+export function buildPaymentError(result: Extract<ValidationResult, { valid: false }>): Response {
   const status = result.status ?? 400;
   const headers: Record<string, string> = {
-    "X-Reason": result.reason ?? "payment_error",
+    "X-Reason": result.reason,
     "Cache-Control": "no-store",
   };
 

@@ -4,9 +4,7 @@ import { validateAuth } from "../auth/nostr.ts";
 import { isBlocked } from "../storage/metadata.ts";
 import { errorResponse, isValidSha256 } from "../util.ts";
 import { checkAccess } from "../middleware/access.ts";
-import { loadPaymentConfig, paymentsEnabled } from "../middleware/payment-config.ts";
-import { loadPricingConfig, getBtcUsdPrice } from "../middleware/price-feed.ts";
-import { buildPaymentRequired } from "../middleware/payments.ts";
+import { paymentGate } from "../middleware/payment-gate.ts";
 
 /**
  * BUD-06: HEAD /upload — Upload pre-flight check
@@ -44,31 +42,26 @@ export async function handleUploadCheck(
       const access = await checkAccess(storage, auth.pubkey, "upload");
       if (!access.allowed) {
         if (access.requiresPayment) {
-          // HEAD preflights: always return 402, never validate X-Cashu
-          // Even if client sends X-Cashu, ignore it — HEAD never consumes proofs
-          const { config: payConfig } = await loadPaymentConfig(storage);
-          if (paymentsEnabled(payConfig)) {
-            const { pricing } = await loadPricingConfig("config/payment.toml");
-            const btcUsd = await getBtcUsdPrice();
-            if (btcUsd !== null) {
-              // Use X-Content-Length for file size (BUD-06 convention for HEAD preflight)
-              const sizeStr = request.headers.get("X-Content-Length");
-              const effectiveSize = sizeStr ? parseInt(sizeStr, 10) : 0;
-              const finalSize = isNaN(effectiveSize) ? 0 : effectiveSize;
-              // 0 bytes → computeSatPrice returns 1 sat (floor), minimum discoverable price
-              const priceResp = buildPaymentRequired(finalSize, payConfig.mints.map(m => m.url), btcUsd, pricing);
-              // HEAD response: copy headers, null body (HTTP HEAD spec)
-              return new Response(null, {
-                status: 402,
-                headers: priceResp.headers,
-              });
-            } else {
-              // Price unavailable: fail closed (503) — never fall through to allow free uploads
-              return new Response(null, {
-                status: 503,
-                headers: { "X-Reason": "price_unavailable", "Retry-After": "30" },
-              });
-            }
+          // HEAD preflights: strip X-Cashu so paymentGate always returns 402
+          // (HEAD never consumes proofs — client will attach proof on the real PUT)
+          const headRequest = new Request(request.url, {
+            method: request.method,
+            headers: (() => {
+              const h = new Headers(request.headers);
+              h.delete("X-Cashu");
+              return h;
+            })(),
+          });
+          const sizeStr = request.headers.get("X-Content-Length");
+          const effectiveSize = sizeStr ? parseInt(sizeStr, 10) : 0;
+          const finalSize = isNaN(effectiveSize) ? 0 : effectiveSize;
+          const gate = await paymentGate(headRequest, storage, finalSize);
+          if (gate) {
+            // HEAD response: copy headers, null body (HTTP HEAD spec)
+            return new Response(null, {
+              status: gate.status,
+              headers: gate.headers,
+            });
           }
           // Payments disabled: fall through to 200
         } else {
