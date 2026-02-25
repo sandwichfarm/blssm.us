@@ -17,8 +17,14 @@ const BYTES_PER_GB = 1024 ** 3;
 // In-memory caches
 // ---------------------------------------------------------------------------
 
-/** Cached pricing config (never changes at runtime) */
-let pricingCache: { mints: string[]; pricing: PricingConfig } | null = null;
+/**
+ * Cached pricing config.
+ * NOTE: `mints` here are from payment.toml / env vars and are used ONLY by the CI
+ * deploy step to sync env vars. At runtime, the authoritative mint list comes from
+ * config/payment.json via loadPaymentConfig() in payment-config.ts.
+ */
+let pricingCache: { mints: string[]; pricing: PricingConfig; _expires: number } | null = null;
+const PRICING_CACHE_TTL_MS = 60_000;
 
 /** Cached BTC/USD price */
 let priceCache: { btcUsd: number; fetchedAt: number } | null = null;
@@ -163,6 +169,10 @@ export async function getBtcUsdPrice(): Promise<number | null> {
         priceCache = { btcUsd: price, fetchedAt: Date.now() };
       }
       return price;
+    }).catch(() => {
+      // Prevent rejected promise from getting stuck — reset so next call retries
+      priceFetchInFlight = null;
+      return null;
     });
   }
 
@@ -264,13 +274,13 @@ function loadPricingConfigFromEnv(): { mints: string[]; pricing: PricingConfig }
 export async function loadPricingConfig(
   tomlPath: string,
 ): Promise<{ mints: string[]; pricing: PricingConfig }> {
-  // Return cached result if available
-  if (pricingCache) return pricingCache;
+  // Return cached result if available and fresh
+  if (pricingCache && pricingCache._expires > Date.now()) return pricingCache;
 
   // Try env vars first
   const fromEnv = loadPricingConfigFromEnv();
   if (fromEnv) {
-    pricingCache = fromEnv;
+    pricingCache = { ...fromEnv, _expires: Date.now() + PRICING_CACHE_TTL_MS };
     return pricingCache;
   }
 
@@ -282,13 +292,13 @@ export async function loadPricingConfig(
     raw = parse(text);
   } catch {
     // Missing or unreadable file — return safe defaults
-    const result = { mints: [] as string[], pricing: { ...DEFAULT_PRICING } };
+    const result = { mints: [] as string[], pricing: { ...DEFAULT_PRICING }, _expires: Date.now() + PRICING_CACHE_TTL_MS };
     pricingCache = result;
     return result;
   }
 
   if (!raw || typeof raw !== "object") {
-    const result = { mints: [] as string[], pricing: { ...DEFAULT_PRICING } };
+    const result = { mints: [] as string[], pricing: { ...DEFAULT_PRICING }, _expires: Date.now() + PRICING_CACHE_TTL_MS };
     pricingCache = result;
     return result;
   }
@@ -328,7 +338,7 @@ export async function loadPricingConfig(
   const rawPricing = r["pricing"];
   const pricing = parsePricingSection(rawPricing);
 
-  const result = { mints, pricing };
+  const result = { mints, pricing, _expires: Date.now() + PRICING_CACHE_TTL_MS };
   pricingCache = result;
   return result;
 }
@@ -372,4 +382,5 @@ export function _resetPriceCacheForTesting(): void {
   priceCache = null;
   priceFetchInFlight = null;
   pricingCache = null;
+  delete process.env["BTC_USD_PRICE"];
 }

@@ -19,8 +19,8 @@ function makeStorage(configJson: unknown): StorageClient {
 
 // Valid hex-64 pubkeys for testing
 const PUB_CLEAN = "a".repeat(64);
-const PUB_BLACKLISTED = "b".repeat(64);
-const PUB_WHITELISTED = "c".repeat(64);
+const PUB_BLOCKED = "b".repeat(64);
+const PUB_ALLOWED = "c".repeat(64);
 const PUB_BOTH = "d".repeat(64); // on both allowlist and blocklist
 const PUB_UNLISTED = "e".repeat(64); // not on any list
 
@@ -37,8 +37,8 @@ Deno.test("ACL-05 compat: public mode, clean pubkey, action=upload → allowed",
 
 Deno.test("ACL-05 compat: public mode, blocked pubkey, action=upload → denied, reason contains 'blocked'", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, allowlist: [], blocklist: [PUB_BLACKLISTED] });
-  const result = await checkAccess(storage, PUB_BLACKLISTED, "upload");
+  const storage = makeStorage({ public: true, allowlist: [], blocklist: [PUB_BLOCKED] });
+  const result = await checkAccess(storage, PUB_BLOCKED, "upload");
   assertEquals(result.allowed, false);
   if (!result.allowed) {
     assertEquals(result.reason.includes("blocked"), true);
@@ -47,8 +47,8 @@ Deno.test("ACL-05 compat: public mode, blocked pubkey, action=upload → denied,
 
 Deno.test("ACL-05 compat: public mode, allowlisted pubkey, action=upload → allowed (allowlist is no-op in plain public)", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, allowlist: [PUB_WHITELISTED], blocklist: [] });
-  const result = await checkAccess(storage, PUB_WHITELISTED, "upload");
+  const storage = makeStorage({ public: true, allowlist: [PUB_ALLOWED], blocklist: [] });
+  const result = await checkAccess(storage, PUB_ALLOWED, "upload");
   assertEquals(result.allowed, true);
 });
 
@@ -68,8 +68,8 @@ Deno.test("ACL-05 compat: public mode, pubkey on both lists, action=upload → d
 
 Deno.test("ACL-05 compat: private mode, allowlisted pubkey, action=upload → allowed", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: false, allowlist: [PUB_WHITELISTED], blocklist: [] });
-  const result = await checkAccess(storage, PUB_WHITELISTED, "upload");
+  const storage = makeStorage({ public: false, allowlist: [PUB_ALLOWED], blocklist: [] });
+  const result = await checkAccess(storage, PUB_ALLOWED, "upload");
   assertEquals(result.allowed, true);
 });
 
@@ -85,8 +85,8 @@ Deno.test("ACL-05 compat: private mode, clean pubkey, action=upload → denied, 
 
 Deno.test("ACL-05 compat: private mode, blocklisted-only pubkey, action=upload → denied", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: false, allowlist: [], blocklist: [PUB_BLACKLISTED] });
-  const result = await checkAccess(storage, PUB_BLACKLISTED, "upload");
+  const storage = makeStorage({ public: false, allowlist: [], blocklist: [PUB_BLOCKED] });
+  const result = await checkAccess(storage, PUB_BLOCKED, "upload");
   assertEquals(result.allowed, false);
 });
 
@@ -103,15 +103,15 @@ Deno.test("ACL-01: public+payments, config has payments:true → mode is active 
 
 Deno.test("ACL-02: public+payments, allowlisted pubkey, action=upload → allowed:true (no payment required)", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, payments: true, allowlist: [PUB_WHITELISTED], blocklist: [] });
-  const result = await checkAccess(storage, PUB_WHITELISTED, "upload");
+  const storage = makeStorage({ public: true, payments: true, allowlist: [PUB_ALLOWED], blocklist: [] });
+  const result = await checkAccess(storage, PUB_ALLOWED, "upload");
   assertEquals(result.allowed, true);
 });
 
 Deno.test("ACL-03: public+payments, blocked pubkey, action=upload → denied with reason 'blocked' (NOT requiresPayment)", async () => {
   _resetAccessCacheForTesting();
-  const storage = makeStorage({ public: true, payments: true, allowlist: [], blocklist: [PUB_BLACKLISTED] });
-  const result = await checkAccess(storage, PUB_BLACKLISTED, "upload");
+  const storage = makeStorage({ public: true, payments: true, allowlist: [], blocklist: [PUB_BLOCKED] });
+  const result = await checkAccess(storage, PUB_BLOCKED, "upload");
   assertEquals(result.allowed, false);
   if (!result.allowed) {
     assertEquals(result.reason.includes("blocked"), true);

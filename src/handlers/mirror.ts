@@ -44,6 +44,7 @@ export async function handleMirror(
 
   // Access control — GATE-02: runs after auth + JSON parse (SC4 approved exception)
   const access = await checkAccess(storage, auth.pubkey, "mirror");
+  let paidForBytes = 0; // tracks size used for pricing (0 = no payment path)
   if (!access.allowed) {
     if (access.requiresPayment) {
       // HEAD remote URL to get file size for pricing
@@ -58,6 +59,7 @@ export async function handleMirror(
       if (isNaN(remoteSize)) remoteSize = 0;
       const gate = await paymentGate(request, storage, remoteSize);
       if (gate) return gate;
+      paidForBytes = remoteSize;
       // null = proof valid, fall through to fetch
     } else {
       return errorResponse(access.reason, 403);
@@ -78,6 +80,11 @@ export async function handleMirror(
 
   // Read body
   const remoteData = new Uint8Array(await remoteResp.arrayBuffer());
+
+  // Verify actual size does not exceed what was used for payment pricing
+  if (paidForBytes > 0 && remoteData.byteLength > paidForBytes) {
+    return errorResponse("Remote file size exceeds Content-Length used for payment", 400);
+  }
 
   // Check size limit
   if (remoteData.byteLength > config.maxUploadSize) {
