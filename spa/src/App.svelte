@@ -308,7 +308,7 @@
         ? [{ id: "07", name: "Payments", status: "partial" as const }]
         : []),
       { id: "08", name: "File Metadata (NIP-94)", status: "full" },
-      { id: "09", name: "Content Reporting", status: "full" },
+      { id: "09", name: "Content Reporting", status: "full", href: "/report" },
     ]
   );
 
@@ -661,7 +661,11 @@
           <div class="flex items-center justify-between px-4 py-2.5 border border-zinc-800 rounded-lg">
             <div class="flex items-center gap-3">
               <code class="text-xs font-mono text-zinc-500">BUD-{bud.id}</code>
-              <span class="text-sm text-zinc-300">{bud.name}</span>
+              {#if bud.href}
+                <a href={bud.href} onclick={(e) => { e.preventDefault(); navigate(bud.href); }} class="text-sm text-purple-400 hover:text-purple-300 underline underline-offset-2">{bud.name}</a>
+              {:else}
+                <span class="text-sm text-zinc-300">{bud.name}</span>
+              {/if}
             </div>
             <span class="text-xs px-2 py-0.5 rounded-full border {statusBadge(bud.status)}">
               {bud.status}
@@ -762,25 +766,18 @@
       </div>
     </section>
 
-    <section>
-      <h2 class="text-xl font-semibold mb-4">Report Content</h2>
-      <div class="border border-zinc-800 rounded-lg p-4 text-sm text-zinc-400 space-y-2">
-        <p>Submit a NIP-56 moderation report for a blob hosted on this server.</p>
-        <button
-          onclick={() => navigate("/report")}
-          class="inline-block mt-1 text-sm text-purple-400 hover:text-purple-300 underline underline-offset-2"
-        >Open report form &rarr;</button>
-      </div>
-    </section>
   {/if}
   </main>
 
   <footer class="border-t border-zinc-800 mt-12">
     <div class="max-w-3xl mx-auto px-6 py-6 flex items-center justify-between text-xs text-zinc-600">
       <span>blssm.us</span>
-      <a href="https://github.com/hzrd149/blossom" target="_blank" rel="noopener" class="hover:text-zinc-400">
-        Blossom Protocol
-      </a>
+      <div class="flex items-center gap-4">
+        <a href="/report" onclick={(e) => { e.preventDefault(); navigate("/report"); }} class="hover:text-zinc-400">Report Content</a>
+        <a href="https://github.com/hzrd149/blossom" target="_blank" rel="noopener" class="hover:text-zinc-400">
+          Blossom Protocol
+        </a>
+      </div>
     </div>
   </footer>
 </div>
