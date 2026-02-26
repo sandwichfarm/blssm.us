@@ -3,7 +3,9 @@
   import type { ISigner } from "applesauce-signers";
   import { ExtensionSigner, PrivateKeySigner, NostrConnectSigner } from "applesauce-signers";
   import { Notemine } from "@notemine/wrapper";
+  import { SimplePool } from "nostr-tools/pool";
   import { Subscription } from "rxjs";
+  import { QR } from "qr-svg";
 
   const SERVER_URL = window.location.origin;
 
@@ -35,43 +37,163 @@
 
   type SignerType = "extension" | "nip46" | "anonymous";
 
+  // Client-side routing
+  let currentPath = $state(window.location.pathname);
+
+  function navigate(path: string) {
+    history.pushState(null, "", path);
+    currentPath = path;
+  }
+
+  const isReportPage = $derived(currentPath === "/report");
+
   let loading = $state(true);
   let error = $state<string | null>(null);
   let serverInfo = $state<ServerInfo | null>(null);
-
-  // Report form state
-  let reportOpen = $state(false);
   let reportHash = $state("");
   let reportCategory = $state<string>("spam");
   let reportDescription = $state("");
   let signerType = $state<SignerType>("anonymous");
   let bunkerUri = $state("");
+  let nip46Mode = $state<"bunker" | "qr">("qr");
+  let nip46ConnectUri = $state("");
+  let nip46QrSvg = $state("");
+  let nip46Connected = $state(false);
+  let nip46Connecting = $state(false);
+  let nip46Signer: NostrConnectSigner | null = null;
+  let nip46AbortController: AbortController | null = null;
   let mining = $state(false);
   let miningProgress = $state<{ bestPow: number; hashRate: number } | null>(null);
   let submitting = $state(false);
   let reportResult = $state<{ success: boolean; message: string } | null>(null);
   let hasExtension = $state(false);
+  let hashChecking = $state(false);
+  let hashVerified = $state(false);
+  let hashError = $state<string | null>(null);
 
   let activeMiner: Notemine | null = null;
   let miningSubscriptions: Subscription[] = [];
 
   const isValidHash = $derived(/^[0-9a-f]{64}$/.test(reportHash));
-  const canSubmit = $derived(isValidHash && !mining && !submitting && (signerType !== "nip46" || bunkerUri.length > 0));
+  const canSubmit = $derived(
+    hashVerified && !mining && !submitting && (
+      signerType !== "nip46" || nip46Connected || (nip46Mode === "bunker" && bunkerUri.length > 0)
+    )
+  );
+
+  async function checkHash() {
+    hashError = null;
+    hashChecking = true;
+    hashVerified = false;
+    try {
+      const res = await fetch(`/${reportHash}`, { method: "HEAD" });
+      if (res.ok) {
+        hashVerified = true;
+      } else if (res.status === 404) {
+        hashError = "Blob not found on this server";
+      } else {
+        hashError = `Server returned ${res.status}`;
+      }
+    } catch {
+      hashError = "Could not reach server";
+    } finally {
+      hashChecking = false;
+    }
+  }
+
+  function resetHash() {
+    reportHash = "";
+    hashVerified = false;
+    hashError = null;
+    reportResult = null;
+  }
+
+  const NIP46_RELAYS = ["wss://relay.nsec.app", "wss://relay.damus.io"];
 
   async function getSigner(): Promise<ISigner> {
     switch (signerType) {
       case "extension":
         return new ExtensionSigner();
       case "nip46": {
-        const signer = await NostrConnectSigner.fromBunkerURI(bunkerUri);
+        if (nip46Signer && nip46Connected) return nip46Signer;
+        // Bunker URI mode — create fresh signer from URI
+        const signer = await NostrConnectSigner.fromBunkerURI(bunkerUri, {
+          pool: makeNostrPool(),
+        });
         await signer.open();
         await signer.connect();
+        nip46Signer = signer;
+        nip46Connected = true;
         return signer;
       }
       case "anonymous":
       default:
         return new PrivateKeySigner();
     }
+  }
+
+  function makeNostrPool(): { subscription: any; publish: any } {
+    const pool = new SimplePool();
+    return {
+      subscription(relays: string[], filters: Record<string, any>[]) {
+        return {
+          subscribe(observer: any) {
+            const sub = pool.subscribeMany(relays, filters as any, {
+              onevent(event: any) { observer.next?.(event); },
+              oneose() {},
+              onclose() { observer.complete?.(); },
+            });
+            return { unsubscribe: () => sub.close() };
+          },
+        };
+      },
+      publish(relays: string[], event: any) {
+        return Promise.all(pool.publish(relays, event));
+      },
+    };
+  }
+
+  async function initNip46QR() {
+    nip46Connecting = true;
+    nip46Connected = false;
+    nip46AbortController?.abort();
+    nip46AbortController = new AbortController();
+
+    try {
+      const signer = new NostrConnectSigner({
+        relays: NIP46_RELAYS,
+        pool: makeNostrPool(),
+      });
+      nip46Signer = signer;
+      await signer.open();
+
+      const uri = signer.getNostrConnectURI({
+        name: "blssm.us",
+        url: window.location.origin,
+        permissions: NostrConnectSigner.buildSigningPermissions([1984]),
+      });
+      nip46ConnectUri = uri;
+      nip46QrSvg = QR(uri, "L");
+
+      await signer.waitForSigner(nip46AbortController.signal);
+      nip46Connected = true;
+    } catch (e: any) {
+      if (e?.name !== "AbortError") {
+        reportResult = { success: false, message: `NIP-46 connection failed: ${e?.message ?? "Unknown error"}` };
+      }
+    } finally {
+      nip46Connecting = false;
+    }
+  }
+
+  function cancelNip46() {
+    nip46AbortController?.abort();
+    nip46Signer?.close();
+    nip46Signer = null;
+    nip46Connected = false;
+    nip46Connecting = false;
+    nip46ConnectUri = "";
+    nip46QrSvg = "";
   }
 
   function cleanupMining() {
@@ -225,19 +347,26 @@
     return pk.length > 16 ? `${pk.slice(0, 8)}...${pk.slice(-8)}` : pk;
   }
 
-  onMount(async () => {
+  onMount(() => {
     hasExtension = !!(window as any).nostr;
     if (hasExtension) signerType = "extension";
 
-    try {
-      const res = await fetch("/server-info");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      serverInfo = await res.json();
-    } catch (e) {
-      error = e instanceof Error ? e.message : "Failed to load server info";
-    } finally {
-      loading = false;
-    }
+    const onPopState = () => { currentPath = window.location.pathname; };
+    window.addEventListener("popstate", onPopState);
+
+    (async () => {
+      try {
+        const res = await fetch("/server-info");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        serverInfo = await res.json();
+      } catch (e) {
+        error = e instanceof Error ? e.message : "Failed to load server info";
+      } finally {
+        loading = false;
+      }
+    })();
+
+    return () => window.removeEventListener("popstate", onPopState);
   });
 </script>
 
@@ -271,6 +400,209 @@
   </header>
 
   <main class="max-w-3xl mx-auto px-6 py-12 space-y-12">
+  {#if isReportPage}
+    <!-- Report Content Page -->
+    <div class="space-y-6">
+      <div class="flex items-center gap-3">
+        <button onclick={() => navigate("/")} class="text-zinc-500 hover:text-zinc-300 text-sm">&larr; Back</button>
+        <h2 class="text-2xl font-semibold">Report Content</h2>
+      </div>
+
+      <div class="border border-zinc-800 rounded-lg p-4 space-y-4">
+        <!-- Stage 1: SHA-256 Hash -->
+        <div>
+          <label for="report-hash" class="block text-sm font-medium text-zinc-400 mb-1">Blob SHA-256 Hash</label>
+          {#if hashVerified}
+            <div class="flex items-center gap-2">
+              <code class="flex-1 bg-zinc-900 border border-emerald-500/30 rounded px-3 py-2 font-mono text-xs text-zinc-200 truncate">{reportHash}</code>
+              <button onclick={resetHash} class="text-xs text-zinc-500 hover:text-zinc-300 shrink-0">Change</button>
+            </div>
+            <p class="mt-1 text-xs text-emerald-400">Blob found on server</p>
+          {:else}
+            <div class="flex gap-2">
+              <input
+                id="report-hash"
+                type="text"
+                bind:value={reportHash}
+                placeholder="e.g. a1b2c3d4..."
+                spellcheck="false"
+                disabled={hashChecking}
+                class="flex-1 bg-zinc-900 border rounded px-3 py-2 font-mono text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-purple-500 {reportHash && !isValidHash ? 'border-red-500/50' : hashError ? 'border-red-500/50' : 'border-zinc-700'}"
+              />
+              <button
+                onclick={checkHash}
+                disabled={!isValidHash || hashChecking}
+                class="px-4 py-2 rounded text-xs font-medium transition-colors shrink-0 {isValidHash && !hashChecking ? 'bg-purple-600 hover:bg-purple-500 text-white' : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'}"
+              >
+                {hashChecking ? "Checking..." : "Verify"}
+              </button>
+            </div>
+            {#if reportHash && !isValidHash}
+              <p class="mt-1 text-xs text-red-400">Must be a 64-character hex string</p>
+            {/if}
+            {#if hashError}
+              <p class="mt-1 text-xs text-red-400">{hashError}</p>
+            {/if}
+          {/if}
+        </div>
+
+        <!-- Stage 2: Remaining fields (only after hash verified) -->
+        {#if hashVerified}
+        <!-- Report Category -->
+        <div>
+          <label for="report-category" class="block text-sm font-medium text-zinc-400 mb-1">Category</label>
+          <select
+            id="report-category"
+            bind:value={reportCategory}
+            class="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-purple-500"
+          >
+            {#each REPORT_CATEGORIES as cat}
+              <option value={cat.value}>{cat.label}</option>
+            {/each}
+          </select>
+        </div>
+
+        <!-- Description -->
+        <div>
+          <label for="report-desc" class="block text-sm font-medium text-zinc-400 mb-1">Description <span class="text-zinc-600">(optional)</span></label>
+          <textarea
+            id="report-desc"
+            bind:value={reportDescription}
+            rows="3"
+            placeholder="Why is this content being reported?"
+            class="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-purple-500 resize-y"
+          ></textarea>
+        </div>
+
+        <!-- Signing Method -->
+        <div>
+          <span class="block text-sm font-medium text-zinc-400 mb-2">Signing Method</span>
+          <div class="flex gap-1 bg-zinc-900 border border-zinc-700 rounded p-0.5">
+            {#if hasExtension}
+              <button
+                onclick={() => signerType = "extension"}
+                class="flex-1 text-xs py-1.5 rounded transition-colors {signerType === 'extension' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}"
+              >Extension (NIP-07)</button>
+            {/if}
+            <button
+              onclick={() => { signerType = "nip46"; if (nip46Mode === "qr" && !nip46ConnectUri && !nip46Connecting) initNip46QR(); }}
+              class="flex-1 text-xs py-1.5 rounded transition-colors {signerType === 'nip46' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}"
+            >Remote Signer</button>
+            <button
+              onclick={() => signerType = "anonymous"}
+              class="flex-1 text-xs py-1.5 rounded transition-colors {signerType === 'anonymous' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}"
+            >Anonymous</button>
+          </div>
+
+          {#if signerType === "nip46"}
+            <div class="mt-2 space-y-3">
+              {#if nip46Connected}
+                <div class="flex items-center gap-2 text-xs text-emerald-400">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  Connected to remote signer
+                  <button onclick={cancelNip46} class="ml-auto text-zinc-500 hover:text-zinc-300">Disconnect</button>
+                </div>
+              {:else}
+                <!-- Mode toggle -->
+                <div class="flex gap-1 bg-zinc-900/50 border border-zinc-800 rounded p-0.5">
+                  <button
+                    onclick={() => { nip46Mode = "qr"; if (!nip46ConnectUri && !nip46Connecting) initNip46QR(); }}
+                    class="flex-1 text-xs py-1 rounded transition-colors {nip46Mode === 'qr' ? 'bg-zinc-700 text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}"
+                  >QR Code</button>
+                  <button
+                    onclick={() => { nip46Mode = "bunker"; cancelNip46(); }}
+                    class="flex-1 text-xs py-1 rounded transition-colors {nip46Mode === 'bunker' ? 'bg-zinc-700 text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}"
+                  >Bunker URI</button>
+                </div>
+
+                {#if nip46Mode === "qr"}
+                  <div class="flex flex-col items-center gap-2">
+                    {#if nip46Connecting && !nip46QrSvg}
+                      <div class="w-48 h-48 flex items-center justify-center border border-zinc-700 rounded">
+                        <span class="text-xs text-zinc-500 animate-pulse">Generating...</span>
+                      </div>
+                    {:else if nip46QrSvg}
+                      <div class="bg-white p-3 rounded w-48 h-48">
+                        {@html nip46QrSvg}
+                      </div>
+                      <p class="text-xs text-zinc-500 text-center">Scan with your remote signer app</p>
+                      {#if nip46Connecting}
+                        <div class="flex items-center gap-2 text-xs text-zinc-400">
+                          <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                          Waiting for connection...
+                          <button onclick={cancelNip46} class="text-zinc-500 hover:text-zinc-300">Cancel</button>
+                        </div>
+                      {/if}
+                      <button
+                        onclick={() => navigator.clipboard.writeText(nip46ConnectUri)}
+                        class="text-xs text-zinc-500 hover:text-zinc-300 underline underline-offset-2"
+                      >Copy connect URI</button>
+                    {/if}
+                  </div>
+                {:else}
+                  <input
+                    type="text"
+                    bind:value={bunkerUri}
+                    placeholder="bunker://..."
+                    spellcheck="false"
+                    class="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 font-mono text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-purple-500"
+                  />
+                {/if}
+              {/if}
+            </div>
+          {/if}
+
+          {#if signerType === "anonymous"}
+            <p class="mt-1.5 text-xs text-zinc-500">Generates an ephemeral keypair. The report will not be linked to your identity.</p>
+          {/if}
+        </div>
+
+        <!-- Mining Progress -->
+        {#if mining && miningProgress}
+          <div class="bg-zinc-900 border border-zinc-700 rounded px-3 py-2 space-y-1">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-zinc-400">Mining to difficulty 16...</span>
+              <button onclick={cancelMining} class="text-red-400 hover:text-red-300">Cancel</button>
+            </div>
+            <div class="flex gap-4 text-xs font-mono text-zinc-500">
+              <span>Best POW: <span class="text-zinc-300">{miningProgress.bestPow}</span> / 16</span>
+              <span>Hash rate: <span class="text-zinc-300">{miningProgress.hashRate > 0 ? `${(miningProgress.hashRate / 1000).toFixed(1)}k/s` : "..."}</span></span>
+            </div>
+            <div class="w-full bg-zinc-800 rounded-full h-1 mt-1">
+              <div
+                class="bg-purple-500 h-1 rounded-full transition-all"
+                style="width: {Math.min(100, (miningProgress.bestPow / 16) * 100)}%"
+              ></div>
+            </div>
+          </div>
+        {/if}
+
+        <!-- Result -->
+        {#if reportResult}
+          <div class="text-sm px-3 py-2 rounded border {reportResult.success ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-red-500/30 bg-red-500/10 text-red-300'}">
+            {reportResult.message}
+          </div>
+        {/if}
+
+        <!-- Submit -->
+        <button
+          onclick={submitReport}
+          disabled={!canSubmit}
+          class="w-full py-2 rounded text-sm font-medium transition-colors {canSubmit ? 'bg-purple-600 hover:bg-purple-500 text-white' : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'}"
+        >
+          {#if mining}
+            Mining...
+          {:else if submitting}
+            Submitting...
+          {:else}
+            Submit Report
+          {/if}
+        </button>
+        {/if}
+      </div>
+    </div>
+  {:else}
+    <!-- Dashboard -->
     <!-- Private server notice -->
     {#if serverInfo && !serverInfo.public}
       <div class="border border-amber-500/30 bg-amber-500/10 rounded-lg px-4 py-3 text-sm text-amber-300">
@@ -430,139 +762,17 @@
       </div>
     </section>
 
-    <!-- Report Content -->
     <section>
-      <button
-        onclick={() => { reportOpen = !reportOpen; reportResult = null; }}
-        class="flex items-center justify-between w-full text-left"
-      >
-        <h2 class="text-xl font-semibold">Report Content</h2>
-        <span class="text-zinc-500 text-sm">{reportOpen ? "collapse" : "expand"}</span>
-      </button>
-
-      {#if reportOpen}
-        <div class="mt-4 border border-zinc-800 rounded-lg p-4 space-y-4">
-          <!-- SHA-256 Hash -->
-          <div>
-            <label for="report-hash" class="block text-sm font-medium text-zinc-400 mb-1">Blob SHA-256 Hash</label>
-            <input
-              id="report-hash"
-              type="text"
-              bind:value={reportHash}
-              placeholder="e.g. a1b2c3d4..."
-              spellcheck="false"
-              class="w-full bg-zinc-900 border rounded px-3 py-2 font-mono text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-purple-500 {reportHash && !isValidHash ? 'border-red-500/50' : 'border-zinc-700'}"
-            />
-            {#if reportHash && !isValidHash}
-              <p class="mt-1 text-xs text-red-400">Must be a 64-character hex string</p>
-            {/if}
-          </div>
-
-          <!-- Report Category -->
-          <div>
-            <label for="report-category" class="block text-sm font-medium text-zinc-400 mb-1">Category</label>
-            <select
-              id="report-category"
-              bind:value={reportCategory}
-              class="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-purple-500"
-            >
-              {#each REPORT_CATEGORIES as cat}
-                <option value={cat.value}>{cat.label}</option>
-              {/each}
-            </select>
-          </div>
-
-          <!-- Description -->
-          <div>
-            <label for="report-desc" class="block text-sm font-medium text-zinc-400 mb-1">Description <span class="text-zinc-600">(optional)</span></label>
-            <textarea
-              id="report-desc"
-              bind:value={reportDescription}
-              rows="3"
-              placeholder="Why is this content being reported?"
-              class="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-purple-500 resize-y"
-            ></textarea>
-          </div>
-
-          <!-- Signing Method -->
-          <div>
-            <span class="block text-sm font-medium text-zinc-400 mb-2">Signing Method</span>
-            <div class="flex gap-1 bg-zinc-900 border border-zinc-700 rounded p-0.5">
-              {#if hasExtension}
-                <button
-                  onclick={() => signerType = "extension"}
-                  class="flex-1 text-xs py-1.5 rounded transition-colors {signerType === 'extension' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}"
-                >Extension (NIP-07)</button>
-              {/if}
-              <button
-                onclick={() => signerType = "nip46"}
-                class="flex-1 text-xs py-1.5 rounded transition-colors {signerType === 'nip46' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}"
-              >Remote (NIP-46)</button>
-              <button
-                onclick={() => signerType = "anonymous"}
-                class="flex-1 text-xs py-1.5 rounded transition-colors {signerType === 'anonymous' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}"
-              >Anonymous</button>
-            </div>
-
-            {#if signerType === "nip46"}
-              <input
-                type="text"
-                bind:value={bunkerUri}
-                placeholder="bunker://..."
-                spellcheck="false"
-                class="mt-2 w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 font-mono text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-purple-500"
-              />
-            {/if}
-
-            {#if signerType === "anonymous"}
-              <p class="mt-1.5 text-xs text-zinc-500">Generates an ephemeral keypair. The report will not be linked to your identity.</p>
-            {/if}
-          </div>
-
-          <!-- Mining Progress -->
-          {#if mining && miningProgress}
-            <div class="bg-zinc-900 border border-zinc-700 rounded px-3 py-2 space-y-1">
-              <div class="flex items-center justify-between text-xs">
-                <span class="text-zinc-400">Mining to difficulty 16...</span>
-                <button onclick={cancelMining} class="text-red-400 hover:text-red-300">Cancel</button>
-              </div>
-              <div class="flex gap-4 text-xs font-mono text-zinc-500">
-                <span>Best POW: <span class="text-zinc-300">{miningProgress.bestPow}</span> / 16</span>
-                <span>Hash rate: <span class="text-zinc-300">{miningProgress.hashRate > 0 ? `${(miningProgress.hashRate / 1000).toFixed(1)}k/s` : "..."}</span></span>
-              </div>
-              <div class="w-full bg-zinc-800 rounded-full h-1 mt-1">
-                <div
-                  class="bg-purple-500 h-1 rounded-full transition-all"
-                  style="width: {Math.min(100, (miningProgress.bestPow / 16) * 100)}%"
-                ></div>
-              </div>
-            </div>
-          {/if}
-
-          <!-- Result -->
-          {#if reportResult}
-            <div class="text-sm px-3 py-2 rounded border {reportResult.success ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-red-500/30 bg-red-500/10 text-red-300'}">
-              {reportResult.message}
-            </div>
-          {/if}
-
-          <!-- Submit -->
-          <button
-            onclick={submitReport}
-            disabled={!canSubmit}
-            class="w-full py-2 rounded text-sm font-medium transition-colors {canSubmit ? 'bg-purple-600 hover:bg-purple-500 text-white' : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'}"
-          >
-            {#if mining}
-              Mining...
-            {:else if submitting}
-              Submitting...
-            {:else}
-              Submit Report
-            {/if}
-          </button>
-        </div>
-      {/if}
+      <h2 class="text-xl font-semibold mb-4">Report Content</h2>
+      <div class="border border-zinc-800 rounded-lg p-4 text-sm text-zinc-400 space-y-2">
+        <p>Submit a NIP-56 moderation report for a blob hosted on this server.</p>
+        <button
+          onclick={() => navigate("/report")}
+          class="inline-block mt-1 text-sm text-purple-400 hover:text-purple-300 underline underline-offset-2"
+        >Open report form &rarr;</button>
+      </div>
     </section>
+  {/if}
   </main>
 
   <footer class="border-t border-zinc-800 mt-12">

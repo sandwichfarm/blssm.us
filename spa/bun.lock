@@ -7,6 +7,7 @@
         "@notemine/wrapper": "^0.1.7",
         "applesauce-signers": "^5.1.0",
         "nostr-tools": "^2.23.1",
+        "qr-svg": "^1.1.0",
         "rxjs": "^7.8.2",
       },
       "devDependencies": {
@@ -288,6 +289,8 @@
     "picomatch": ["picomatch@4.0.3", "", {}, "sha512-5gTmgEY/sqK6gFXLIsQNH19lWb4ebPDLA4SdLP7dsWkIXHWlG66oPuVvXSGFPppYZz8ZDZq0dYYrbHfBCVUb1Q=="],
 
     "postcss": ["postcss@8.5.6", "", { "dependencies": { "nanoid": "^3.3.11", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg=="],
+
+    "qr-svg": ["qr-svg@1.1.0", "", { "dependencies": { "tslib": "^2.1.0" } }, "sha512-ZH4c86rMqHec60jHZ+Ms97NvpD7++28pm0L9VZHp0rRzRipplUVdPnsklDsnyXDh9GpFsc9gOWvjOeX+McGCow=="],
 
     "readdirp": ["readdirp@4.1.2", "", {}, "sha512-GDhwkLfywWL2s6vEjyhri+eXmfH6j1L7JE27WhqLeYzoh/A3DBaYGEj2H/HFZCn/kMfim73FXxEJTw06WtxQwg=="],
 

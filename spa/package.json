@@ -24,6 +24,7 @@
     "@notemine/wrapper": "^0.1.7",
     "applesauce-signers": "^5.1.0",
     "nostr-tools": "^2.23.1",
+    "qr-svg": "^1.1.0",
     "rxjs": "^7.8.2"
   }
 }
