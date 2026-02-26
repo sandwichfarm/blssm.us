@@ -4,4 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [svelte(), tailwindcss()],
+  optimizeDeps: {
+    exclude: ['@notemine/wrapper', '@notemine/core'],
+  },
 })

@@ -1,5 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import type { ISigner } from "applesauce-signers";
+  import { ExtensionSigner, PrivateKeySigner, NostrConnectSigner } from "applesauce-signers";
+  import { Notemine } from "@notemine/wrapper";
+  import { Subscription } from "rxjs";
 
   const SERVER_URL = window.location.origin;
 
@@ -19,9 +23,158 @@
     };
   }
 
+  const REPORT_CATEGORIES = [
+    { value: "nudity", label: "Nudity" },
+    { value: "malware", label: "Malware" },
+    { value: "profanity", label: "Profanity" },
+    { value: "illegal", label: "Illegal" },
+    { value: "spam", label: "Spam" },
+    { value: "impersonation", label: "Impersonation" },
+    { value: "other", label: "Other" },
+  ] as const;
+
+  type SignerType = "extension" | "nip46" | "anonymous";
+
   let loading = $state(true);
   let error = $state<string | null>(null);
   let serverInfo = $state<ServerInfo | null>(null);
+
+  // Report form state
+  let reportOpen = $state(false);
+  let reportHash = $state("");
+  let reportCategory = $state<string>("spam");
+  let reportDescription = $state("");
+  let signerType = $state<SignerType>("anonymous");
+  let bunkerUri = $state("");
+  let mining = $state(false);
+  let miningProgress = $state<{ bestPow: number; hashRate: number } | null>(null);
+  let submitting = $state(false);
+  let reportResult = $state<{ success: boolean; message: string } | null>(null);
+  let hasExtension = $state(false);
+
+  let activeMiner: Notemine | null = null;
+  let miningSubscriptions: Subscription[] = [];
+
+  const isValidHash = $derived(/^[0-9a-f]{64}$/.test(reportHash));
+  const canSubmit = $derived(isValidHash && !mining && !submitting && (signerType !== "nip46" || bunkerUri.length > 0));
+
+  async function getSigner(): Promise<ISigner> {
+    switch (signerType) {
+      case "extension":
+        return new ExtensionSigner();
+      case "nip46": {
+        const signer = await NostrConnectSigner.fromBunkerURI(bunkerUri);
+        await signer.open();
+        await signer.connect();
+        return signer;
+      }
+      case "anonymous":
+      default:
+        return new PrivateKeySigner();
+    }
+  }
+
+  function cleanupMining() {
+    miningSubscriptions.forEach(s => s.unsubscribe());
+    miningSubscriptions = [];
+    activeMiner = null;
+    mining = false;
+  }
+
+  function cancelMining() {
+    activeMiner?.cancel();
+    cleanupMining();
+    miningProgress = null;
+  }
+
+  async function submitReport() {
+    reportResult = null;
+    mining = true;
+    miningProgress = { bestPow: 0, hashRate: 0 };
+
+    try {
+      const signer = await getSigner();
+      const pubkey = await signer.getPublicKey();
+
+      // Mine first, then sign
+      const miner = new Notemine({
+        content: reportDescription || "",
+        tags: [["x", reportHash, reportCategory]],
+        pubkey,
+        difficulty: 16,
+      });
+
+      activeMiner = miner;
+
+      // Wait for mining to complete
+      const minedEvent = await new Promise<any>((resolve, reject) => {
+        const sub1 = miner.progress$.subscribe((p) => {
+          miningProgress = {
+            bestPow: p.bestPowData?.bestPow ?? 0,
+            hashRate: p.hashRate ?? 0,
+          };
+        });
+
+        const sub2 = miner.success$.subscribe((s) => {
+          if (s?.result) resolve(s.result.event);
+        });
+
+        const sub3 = miner.error$.subscribe((e) => {
+          reject(new Error(e.message ?? "Mining failed"));
+        });
+
+        const sub4 = miner.cancelledEvent$.subscribe(() => {
+          reject(new Error("Mining cancelled"));
+        });
+
+        miningSubscriptions = [sub1, sub2, sub3, sub4];
+        miner.mine();
+      });
+
+      cleanupMining();
+      miningProgress = null;
+      submitting = true;
+
+      // Sign the mined event template
+      const signedEvent = await signer.signEvent({
+        kind: minedEvent.kind ?? 1984,
+        created_at: minedEvent.created_at ?? Math.floor(Date.now() / 1000),
+        tags: minedEvent.tags ?? [],
+        content: minedEvent.content ?? "",
+      });
+
+      // Close NIP-46 connection if applicable
+      if (signerType === "nip46" && "close" in signer) {
+        (signer as NostrConnectSigner).close();
+      }
+
+      // Submit to server
+      const res = await fetch("/report", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(signedEvent),
+      });
+
+      const body = await res.json().catch(() => null);
+
+      if (res.ok) {
+        reportResult = { success: true, message: body?.message ?? "Report received" };
+        reportHash = "";
+        reportDescription = "";
+      } else {
+        reportResult = { success: false, message: body?.message ?? `HTTP ${res.status}` };
+      }
+    } catch (e: any) {
+      cleanupMining();
+      miningProgress = null;
+      if (e?.message !== "Mining cancelled") {
+        reportResult = { success: false, message: e?.message ?? "Unknown error" };
+      }
+    } finally {
+      submitting = false;
+      mining = false;
+    }
+  }
 
   const buds = $derived(
     [
@@ -73,6 +226,9 @@
   }
 
   onMount(async () => {
+    hasExtension = !!(window as any).nostr;
+    if (hasExtension) signerType = "extension";
+
     try {
       const res = await fetch("/server-info");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -272,6 +428,140 @@
         </div>
         <pre class="px-4 py-3 text-sm font-mono text-zinc-300 overflow-x-auto"><code>curl {SERVER_URL}/&lt;sha256&gt; -o file.bin</code></pre>
       </div>
+    </section>
+
+    <!-- Report Content -->
+    <section>
+      <button
+        onclick={() => { reportOpen = !reportOpen; reportResult = null; }}
+        class="flex items-center justify-between w-full text-left"
+      >
+        <h2 class="text-xl font-semibold">Report Content</h2>
+        <span class="text-zinc-500 text-sm">{reportOpen ? "collapse" : "expand"}</span>
+      </button>
+
+      {#if reportOpen}
+        <div class="mt-4 border border-zinc-800 rounded-lg p-4 space-y-4">
+          <!-- SHA-256 Hash -->
+          <div>
+            <label for="report-hash" class="block text-sm font-medium text-zinc-400 mb-1">Blob SHA-256 Hash</label>
+            <input
+              id="report-hash"
+              type="text"
+              bind:value={reportHash}
+              placeholder="e.g. a1b2c3d4..."
+              spellcheck="false"
+              class="w-full bg-zinc-900 border rounded px-3 py-2 font-mono text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-purple-500 {reportHash && !isValidHash ? 'border-red-500/50' : 'border-zinc-700'}"
+            />
+            {#if reportHash && !isValidHash}
+              <p class="mt-1 text-xs text-red-400">Must be a 64-character hex string</p>
+            {/if}
+          </div>
+
+          <!-- Report Category -->
+          <div>
+            <label for="report-category" class="block text-sm font-medium text-zinc-400 mb-1">Category</label>
+            <select
+              id="report-category"
+              bind:value={reportCategory}
+              class="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-purple-500"
+            >
+              {#each REPORT_CATEGORIES as cat}
+                <option value={cat.value}>{cat.label}</option>
+              {/each}
+            </select>
+          </div>
+
+          <!-- Description -->
+          <div>
+            <label for="report-desc" class="block text-sm font-medium text-zinc-400 mb-1">Description <span class="text-zinc-600">(optional)</span></label>
+            <textarea
+              id="report-desc"
+              bind:value={reportDescription}
+              rows="3"
+              placeholder="Why is this content being reported?"
+              class="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-purple-500 resize-y"
+            ></textarea>
+          </div>
+
+          <!-- Signing Method -->
+          <div>
+            <span class="block text-sm font-medium text-zinc-400 mb-2">Signing Method</span>
+            <div class="flex gap-1 bg-zinc-900 border border-zinc-700 rounded p-0.5">
+              {#if hasExtension}
+                <button
+                  onclick={() => signerType = "extension"}
+                  class="flex-1 text-xs py-1.5 rounded transition-colors {signerType === 'extension' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}"
+                >Extension (NIP-07)</button>
+              {/if}
+              <button
+                onclick={() => signerType = "nip46"}
+                class="flex-1 text-xs py-1.5 rounded transition-colors {signerType === 'nip46' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}"
+              >Remote (NIP-46)</button>
+              <button
+                onclick={() => signerType = "anonymous"}
+                class="flex-1 text-xs py-1.5 rounded transition-colors {signerType === 'anonymous' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}"
+              >Anonymous</button>
+            </div>
+
+            {#if signerType === "nip46"}
+              <input
+                type="text"
+                bind:value={bunkerUri}
+                placeholder="bunker://..."
+                spellcheck="false"
+                class="mt-2 w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 font-mono text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-purple-500"
+              />
+            {/if}
+
+            {#if signerType === "anonymous"}
+              <p class="mt-1.5 text-xs text-zinc-500">Generates an ephemeral keypair. The report will not be linked to your identity.</p>
+            {/if}
+          </div>
+
+          <!-- Mining Progress -->
+          {#if mining && miningProgress}
+            <div class="bg-zinc-900 border border-zinc-700 rounded px-3 py-2 space-y-1">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-zinc-400">Mining to difficulty 16...</span>
+                <button onclick={cancelMining} class="text-red-400 hover:text-red-300">Cancel</button>
+              </div>
+              <div class="flex gap-4 text-xs font-mono text-zinc-500">
+                <span>Best POW: <span class="text-zinc-300">{miningProgress.bestPow}</span> / 16</span>
+                <span>Hash rate: <span class="text-zinc-300">{miningProgress.hashRate > 0 ? `${(miningProgress.hashRate / 1000).toFixed(1)}k/s` : "..."}</span></span>
+              </div>
+              <div class="w-full bg-zinc-800 rounded-full h-1 mt-1">
+                <div
+                  class="bg-purple-500 h-1 rounded-full transition-all"
+                  style="width: {Math.min(100, (miningProgress.bestPow / 16) * 100)}%"
+                ></div>
+              </div>
+            </div>
+          {/if}
+
+          <!-- Result -->
+          {#if reportResult}
+            <div class="text-sm px-3 py-2 rounded border {reportResult.success ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-red-500/30 bg-red-500/10 text-red-300'}">
+              {reportResult.message}
+            </div>
+          {/if}
+
+          <!-- Submit -->
+          <button
+            onclick={submitReport}
+            disabled={!canSubmit}
+            class="w-full py-2 rounded text-sm font-medium transition-colors {canSubmit ? 'bg-purple-600 hover:bg-purple-500 text-white' : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'}"
+          >
+            {#if mining}
+              Mining...
+            {:else if submitting}
+              Submitting...
+            {:else}
+              Submit Report
+            {/if}
+          </button>
+        </div>
+      {/if}
     </section>
   </main>
 
