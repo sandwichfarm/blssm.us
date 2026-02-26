@@ -1,0 +1,28 @@
+; {{ ansible_managed }}
+
+[Unit]
+Description=Cashu Nutshell Mint
+After=network-online.target postgresql.service lnd.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=nutshell
+Group=nutshell
+EnvironmentFile=/etc/nutshell/.env
+ExecStart={{ nutshell_home }}/venv/bin/mint
+Restart=always
+RestartSec=10
+TimeoutStartSec=30
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadOnlyPaths={{ lnd_home }}/.lnd/tls.cert
+ReadOnlyPaths={{ lnd_home }}/.lnd/data/chain/bitcoin/{{ lnd_network }}/mint.macaroon
+
+[Install]
+WantedBy=multi-user.target

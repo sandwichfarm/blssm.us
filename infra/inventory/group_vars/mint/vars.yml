@@ -1,0 +1,25 @@
+---
+# LND
+lnd_version: "0.18.5-beta"
+lnd_arch: "linux-amd64"
+lnd_alias: "blssm-mint"
+lnd_network: mainnet
+lnd_home: /var/lib/lnd
+
+lnd_neutrino_peers:
+  - btcd-mainnet.lightning.computer
+  - neutrino.noderunner.wtf
+  - node.eldamar.icu
+  - btcd.lnolymp.us
+
+# nutshell
+nutshell_version: "0.16.3"
+nutshell_port: 3338
+nutshell_home: /opt/nutshell
+
+# Caddy / domain
+mint_domain: "mint.blssm.us"
+
+# PostgreSQL
+mint_db_name: cashu
+mint_db_user: cashu

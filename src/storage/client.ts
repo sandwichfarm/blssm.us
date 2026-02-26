@@ -131,4 +131,34 @@ export class StorageClient {
   reportPath(sha256: string): string {
     return `reports/${sha256}.json`;
   }
+
+  /**
+   * List files under a storage prefix (directory listing).
+   * Uses Bunny Storage REST API: GET /{zone}/{path}/ returns JSON array of file objects.
+   * Returns relative paths (prefix + filename) for each file found.
+   */
+  async list(prefix: string): Promise<string[]> {
+    // Ensure prefix ends with / for Bunny directory listing
+    const dirPath = prefix.endsWith("/") ? prefix : `${prefix}/`;
+    const resp = await fetch(`${this.baseUrl}/${dirPath}`, {
+      method: "GET",
+      headers: {
+        ...this.headers(),
+        Accept: "application/json",
+      },
+    });
+    if (resp.status === 404) return [];
+    if (!resp.ok) {
+      console.warn(`[storage] list ${dirPath} failed: ${resp.status}`);
+      return [];
+    }
+    try {
+      const entries: Array<{ ObjectName: string; IsDirectory: boolean }> = await resp.json();
+      return entries
+        .filter((e) => !e.IsDirectory)
+        .map((e) => `${dirPath}${e.ObjectName}`);
+    } catch {
+      return [];
+    }
+  }
 }

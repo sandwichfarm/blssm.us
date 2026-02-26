@@ -143,9 +143,10 @@ Deno.test("PAY-03: missing amounts field → defaults to 0 for both actions", ()
 // Edge cases: paymentsEnabled logic
 // ---------------------------------------------------------------------------
 
-Deno.test("Edge: empty mints with valid amounts → paymentsEnabled() === false", () => {
+Deno.test("Edge: empty mints with valid amounts, no LN → paymentsEnabled() === false", () => {
   const config = normalizePaymentConfig({ mints: [], amounts: { upload: 100, mirror: 50 } });
   assertEquals(paymentsEnabled(config), false);
+  assertEquals(paymentsEnabled(config, null), false);
 });
 
 Deno.test("Edge: valid mints with zero amounts → paymentsEnabled() === true (mints present)", () => {
@@ -154,6 +155,26 @@ Deno.test("Edge: valid mints with zero amounts → paymentsEnabled() === true (m
     amounts: { upload: 0, mirror: 0 },
   });
   assertEquals(paymentsEnabled(config), true);
+});
+
+Deno.test("Edge: empty mints + lightning configured → paymentsEnabled() === true", () => {
+  const config = normalizePaymentConfig({ mints: [], amounts: { upload: 0, mirror: 0 } });
+  const lnConfig = { endpoint: "https://lnd.test", macaroon: "abc" };
+  assertEquals(paymentsEnabled(config, lnConfig), true);
+});
+
+Deno.test("Edge: mints + lightning configured → paymentsEnabled() === true (both)", () => {
+  const config = normalizePaymentConfig({
+    mints: [{ url: "https://mint.example.com" }],
+    amounts: { upload: 0, mirror: 0 },
+  });
+  const lnConfig = { endpoint: "https://lnd.test", macaroon: "abc" };
+  assertEquals(paymentsEnabled(config, lnConfig), true);
+});
+
+Deno.test("Edge: empty mints + null lightning → paymentsEnabled() === false", () => {
+  const config = normalizePaymentConfig({ mints: [], amounts: { upload: 0, mirror: 0 } });
+  assertEquals(paymentsEnabled(config, null), false);
 });
 
 // ---------------------------------------------------------------------------
@@ -255,12 +276,13 @@ Deno.test(
 );
 
 Deno.test(
-  "ENV: PRICING_MINT_URLS not set → falls back to storage",
+  "ENV: PRICING_MINT_URLS not set, no LND_REST_URL → falls back to storage",
   withEnvVars(
     {
       PRICING_MINT_URLS: undefined,
       PAYMENT_UPLOAD_AMOUNT: undefined,
       PAYMENT_MIRROR_AMOUNT: undefined,
+      LND_REST_URL: undefined,
     },
     async () => {
       _resetPaymentCacheForTesting();
@@ -275,6 +297,30 @@ Deno.test(
       assertEquals(storageCalled, true, "storage should be called when env vars are not set");
       assertEquals(result.config.mints.length, 1);
       assertEquals(result.config.mints[0].url, "https://fallback.example.com");
+    },
+  ),
+);
+
+Deno.test(
+  "ENV: LND_REST_URL set without PRICING_MINT_URLS → returns config with empty mints",
+  withEnvVars(
+    {
+      PRICING_MINT_URLS: undefined,
+      PAYMENT_UPLOAD_AMOUNT: undefined,
+      PAYMENT_MIRROR_AMOUNT: undefined,
+      LND_REST_URL: "https://lnd.example.com",
+    },
+    async () => {
+      _resetPaymentCacheForTesting();
+      let storageCalled = false;
+      const storage: StorageClient = {
+        getJson: async () => { storageCalled = true; return null; },
+      } as unknown as StorageClient;
+      const result = await loadPaymentConfig(storage);
+      assertEquals(storageCalled, false, "storage should NOT be called when LND_REST_URL is set");
+      assertEquals(result.config.mints.length, 0, "mints should be empty in LN-only mode");
+      assertEquals(result.config.amounts.upload, 0);
+      assertEquals(result.config.amounts.mirror, 0);
     },
   ),
 );

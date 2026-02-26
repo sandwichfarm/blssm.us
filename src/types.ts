@@ -142,6 +142,14 @@ export interface PricingConfig {
   slippage_premium_pct: number;
 }
 
+/** LND REST API config for Lightning invoice payments */
+export interface LightningConfig {
+  /** LND REST endpoint URL (e.g. "https://mint.blssm.us/lnd") */
+  endpoint: string;
+  /** Hex-encoded invoice macaroon */
+  macaroon: string;
+}
+
 /** Result of Cashu proof validation — discriminated union on `valid` */
 export type ValidationResult =
   | { valid: true }
@@ -175,6 +183,8 @@ export interface ServerInfo {
     pricing?: PricingConfig;
     /** Accepted Cashu mint URLs */
     mints: string[];
+    /** true when LND Lightning invoice payments are configured */
+    lightning?: boolean;
   };
 }
 

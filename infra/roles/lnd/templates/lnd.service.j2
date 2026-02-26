@@ -1,0 +1,26 @@
+; {{ ansible_managed }}
+
+[Unit]
+Description=Lightning Network Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lnd
+Group=lnd
+ExecStart=/usr/local/bin/lnd --lnddir={{ lnd_home }}/.lnd
+Restart=always
+RestartSec=30
+TimeoutStartSec=120
+LimitNOFILE=128000
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths={{ lnd_home }}
+
+[Install]
+WantedBy=multi-user.target

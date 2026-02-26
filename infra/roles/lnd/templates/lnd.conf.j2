@@ -1,0 +1,19 @@
+; {{ ansible_managed }}
+
+[Application Options]
+alias={{ lnd_alias }}
+rpclisten=127.0.0.1:10009
+restlisten=127.0.0.1:8080
+wallet-unlock-password-file={{ lnd_home }}/.walletpw
+debuglevel=info
+
+[Bitcoin]
+bitcoin.active=1
+bitcoin.{{ lnd_network }}=1
+bitcoin.node=neutrino
+
+[Neutrino]
+{% for peer in lnd_neutrino_peers %}
+neutrino.addpeer={{ peer }}
+{% endfor %}
+neutrino.feeurl=https://nodes.lightning.computer/fees/v1/btc-fee-estimates.json

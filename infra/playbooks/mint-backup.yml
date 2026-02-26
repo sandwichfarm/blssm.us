@@ -1,0 +1,43 @@
+---
+- name: Backup mint database and LND state
+  hosts: mint
+  become: true
+
+  vars:
+    backup_dir: /var/backups/mint
+    backup_timestamp: "{{ ansible_date_time.iso8601_basic_short }}"
+
+  tasks:
+    - name: Ensure backup directory exists
+      ansible.builtin.file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: "0700"
+        owner: root
+        group: root
+
+    - name: Dump PostgreSQL database
+      community.postgresql.postgresql_db:
+        name: "{{ mint_db_name }}"
+        state: dump
+        target: "{{ backup_dir }}/cashu-{{ backup_timestamp }}.sql.gz"
+      become_user: postgres
+
+    - name: Backup LND channel state
+      ansible.builtin.copy:
+        src: "{{ lnd_home }}/data/chain/bitcoin/{{ lnd_network }}/channel.backup"
+        dest: "{{ backup_dir }}/channel-{{ backup_timestamp }}.backup"
+        remote_src: true
+        mode: "0600"
+
+    - name: Clean up backups older than 30 days
+      ansible.builtin.find:
+        paths: "{{ backup_dir }}"
+        age: 30d
+      register: old_backups
+
+    - name: Remove old backups
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_backups.files }}"

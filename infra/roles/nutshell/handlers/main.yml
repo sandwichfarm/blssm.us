@@ -1,0 +1,6 @@
+---
+- name: restart nutshell
+  ansible.builtin.systemd:
+    name: nutshell
+    daemon_reload: true
+    state: restarted

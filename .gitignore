@@ -2,3 +2,8 @@ node_modules/
 dist/
 .env
 coverage
+
+# Ansible secrets
+infra/.vault_pass
+infra/inventory/hosts.yml
+infra/inventory/group_vars/mint/vault.yml

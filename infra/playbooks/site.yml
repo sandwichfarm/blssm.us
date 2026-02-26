@@ -1,0 +1,11 @@
+---
+- name: Deploy Cashu mint infrastructure
+  hosts: mint
+  become: true
+
+  roles:
+    - common
+    - postgresql
+    - lnd
+    - nutshell
+    - caddy

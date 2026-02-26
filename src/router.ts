@@ -13,6 +13,7 @@ import { handleUploadCheck } from "./handlers/upload-check.ts";
 import { handleReport } from "./handlers/report.ts";
 import { handleSpa } from "./handlers/spa.ts";
 import { handleAdminRefreshPrice } from "./handlers/admin-refresh-price.ts";
+import { handleAdminSweep } from "./handlers/admin-sweep.ts";
 import { handleServerInfo } from "./handlers/server-info.ts";
 
 /** Pre-compiled blob path regexes (avoid re-creation per request) */
@@ -67,6 +68,10 @@ export async function route(
     // POST /admin/refresh-price — Admin: refresh BTC price
     else if (path === "/admin/refresh-price" && method === "POST") {
       response = await handleAdminRefreshPrice(request);
+    }
+    // POST /admin/sweep — Admin: sweep accumulated Cashu proofs to LND
+    else if (path === "/admin/sweep" && method === "POST") {
+      response = await handleAdminSweep(request, storage);
     }
     // GET /server-info — public server configuration
     else if (path === "/server-info" && method === "GET") {

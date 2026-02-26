@@ -2,7 +2,8 @@
   "tasks": {
     "check": "deno check src/main.ts",
     "build": "deno run -A build.ts",
-    "dev": "deno run -A --watch src/main.ts"
+    "dev": "deno run -A --watch src/main.ts",
+    "bench": "deno bench -A src/middleware/bench.ts"
   },
   "imports": {
     "@cashu/cashu-ts": "npm:@cashu/cashu-ts@3.5.0",

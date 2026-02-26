@@ -1,4 +1,4 @@
-import type { MintEntry, PaymentAmounts, PaymentConfig } from "../types.ts";
+import type { LightningConfig, MintEntry, PaymentAmounts, PaymentConfig } from "../types.ts";
 import type { StorageClient } from "../storage/client.ts";
 
 // Hardcoded 60s TTL for the payment config cache.
@@ -96,17 +96,20 @@ function normalizeAmounts(raw: unknown): PaymentAmounts | null {
 
 /**
  * Try to load payment config from environment variables.
- * Returns null if PRICING_MINT_URLS is not set (signal: env not configured).
+ * Returns null if neither PRICING_MINT_URLS nor LND_REST_URL is set.
  */
 function loadPaymentConfigFromEnv(): PaymentConfig | null {
   const mintUrlsRaw = process.env["PRICING_MINT_URLS"];
-  if (!mintUrlsRaw) return null;
+  const hasLnd = !!process.env["LND_REST_URL"];
+  if (!mintUrlsRaw && !hasLnd) return null;
 
   // Parse mint URLs — reuse normalizeMints via object wrapper
   const mintEntries: unknown[] = [];
-  for (const raw of mintUrlsRaw.split(",")) {
-    const url = raw.trim();
-    if (url) mintEntries.push({ url });
+  if (mintUrlsRaw) {
+    for (const raw of mintUrlsRaw.split(",")) {
+      const url = raw.trim();
+      if (url) mintEntries.push({ url });
+    }
   }
   const mints = normalizeMints(mintEntries);
 
@@ -147,11 +150,11 @@ export function normalizePaymentConfig(raw: unknown): PaymentConfig {
 
 /**
  * Returns true if payments are enabled for this config.
- * Payments require at least one valid mint — empty mints = disabled,
- * even if amounts > 0 (can't verify proofs without a mint).
+ * Payments are enabled when at least one payment method is configured:
+ * Cashu mints, Lightning (LND), or both.
  */
-export function paymentsEnabled(config: PaymentConfig): boolean {
-  return config.mints.length > 0;
+export function paymentsEnabled(config: PaymentConfig, lnConfig?: LightningConfig | null): boolean {
+  return config.mints.length > 0 || lnConfig != null;
 }
 
 /**

@@ -3,6 +3,7 @@
 // @ts-ignore — cashu-ts d.ts has rollup-wrapped exports; runtime exports are correct
 import { getDecodedToken, Wallet, Mint } from "@cashu/cashu-ts";
 import type { ValidationResult } from "../types.ts";
+import type { StorageClient } from "../storage/client.ts";
 
 // Type aliases using 'any' since cashu-ts d.ts wraps exports in a declare block
 // that TypeScript doesn't resolve via named imports. Runtime behaviour is correct.
@@ -74,7 +75,7 @@ export function validateTokenStructure(
  * Get or create a cached CashuWallet for a mint URL.
  * CashuWallet.loadMint() is called once per mint (lazy init).
  */
-async function getOrCreateWallet(mintUrl: string): Promise<CashuWallet> {
+export async function getOrCreateWallet(mintUrl: string): Promise<CashuWallet> {
   let wallet = walletCache.get(mintUrl);
   if (!wallet) {
     const mint = new Mint(mintUrl) as unknown as CashuMintInstance;
@@ -103,6 +104,7 @@ export async function validateCashuPayment(
   tokenHeader: string,
   acceptedMintUrls: string[],
   requiredAmountSats: number,
+  storage?: StorageClient,
 ): Promise<ValidationResult> {
   // Step 1: Decode token
   // deno-lint-ignore no-explicit-any
@@ -128,8 +130,15 @@ export async function validateCashuPayment(
   try {
     const wallet = await getOrCreateWallet(decoded.mint);
     // wallet.receive() calls /v1/swap internally, consuming the proofs
-    // Returns new proofs — we discard them (overpayment accepted as tip)
-    await wallet.receive(tokenHeader);
+    // Returns new proofs — save to inbox for later sweep to LND
+    const received = await wallet.receive(tokenHeader);
+    // Fire-and-forget save to inbox (don't block the upload on storage write)
+    if (storage && received && received.length > 0) {
+      const inboxKey = `wallet/inbox/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.json`;
+      const totalSats = received.reduce((sum: number, p: { amount: number }) => sum + p.amount, 0);
+      storage.putJson(inboxKey, { mint: decoded.mint, proofs: received, totalSats })
+        .catch((err: unknown) => console.warn("[proof-validator] inbox save failed:", err));
+    }
   } catch (err: unknown) {
     // Distinguish mint-unreachable from invalid proof
     const msg = err instanceof Error ? err.message : String(err);

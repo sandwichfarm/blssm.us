@@ -1,7 +1,7 @@
 /// <reference lib="deno.ns" />
 import process from "node:process";
-import { timingSafeEqual } from "node:crypto";
 import { fetchBtcUsdPrice, setPriceCache } from "../middleware/price-feed.ts";
+import { validateAdminKey } from "../middleware/admin-auth.ts";
 
 /**
  * POST /admin/refresh-price
@@ -15,21 +15,8 @@ export async function handleAdminRefreshPrice(
   request: Request,
 ): Promise<Response> {
   // --- Auth ---
-  const adminKey = process.env["ADMIN_KEY"];
-  if (!adminKey) {
-    return new Response(JSON.stringify({ error: "server misconfigured" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
-  const provided = request.headers.get("X-Admin-Key") ?? "";
-  if (!constantTimeEqual(adminKey, provided)) {
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+  const authError = validateAdminKey(request);
+  if (authError) return authError;
 
   // --- Fetch price ---
   const price = await fetchBtcUsdPrice();
@@ -58,15 +45,6 @@ export async function handleAdminRefreshPrice(
     JSON.stringify({ btc_usd: price, updated: new Date().toISOString() }),
     { status: 200, headers: { "Content-Type": "application/json" } },
   );
-}
-
-/** Constant-time string comparison to prevent timing attacks on the admin key. */
-function constantTimeEqual(a: string, b: string): boolean {
-  const encoder = new TextEncoder();
-  const bufA = encoder.encode(a);
-  const bufB = encoder.encode(b);
-  if (bufA.byteLength !== bufB.byteLength) return false;
-  return timingSafeEqual(bufA, bufB);
 }
 
 /** Upsert a Bunny EdgeScript environment variable. */

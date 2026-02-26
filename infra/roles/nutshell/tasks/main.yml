@@ -1,0 +1,70 @@
+---
+- name: Install Python and dependencies
+  ansible.builtin.apt:
+    name:
+      - python3
+      - python3-venv
+      - python3-pip
+      - python3-dev
+      - libpq-dev
+      - build-essential
+    state: present
+
+- name: Create nutshell group
+  ansible.builtin.group:
+    name: nutshell
+    system: true
+
+- name: Create nutshell user
+  ansible.builtin.user:
+    name: nutshell
+    group: nutshell
+    groups: lnd
+    system: true
+    home: "{{ nutshell_home }}"
+    create_home: true
+    shell: /usr/sbin/nologin
+
+- name: Create virtualenv and install cashu
+  ansible.builtin.pip:
+    name: "cashu=={{ nutshell_version }}"
+    virtualenv: "{{ nutshell_home }}/venv"
+    virtualenv_command: python3 -m venv
+  notify: restart nutshell
+
+- name: Install psycopg2 in virtualenv
+  ansible.builtin.pip:
+    name: psycopg2
+    virtualenv: "{{ nutshell_home }}/venv"
+
+- name: Create nutshell config directory
+  ansible.builtin.file:
+    path: /etc/nutshell
+    state: directory
+    owner: root
+    group: nutshell
+    mode: "0750"
+
+- name: Deploy nutshell environment file
+  ansible.builtin.template:
+    src: nutshell.env.j2
+    dest: /etc/nutshell/.env
+    owner: root
+    group: nutshell
+    mode: "0640"
+  no_log: true
+  notify: restart nutshell
+
+- name: Deploy nutshell systemd unit
+  ansible.builtin.template:
+    src: nutshell.service.j2
+    dest: /etc/systemd/system/nutshell.service
+    mode: "0644"
+  notify: restart nutshell
+
+- name: Enable and start nutshell
+  ansible.builtin.systemd:
+    name: nutshell
+    daemon_reload: true
+    enabled: true
+    state: started

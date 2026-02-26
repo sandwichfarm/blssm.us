@@ -1,0 +1,31 @@
+---
+- name: Unlock LND wallet
+  hosts: mint
+  become: true
+
+  tasks:
+    - name: Check LND is running
+      ansible.builtin.systemd:
+        name: lnd
+        state: started
+      check_mode: true
+      register: lnd_status
+
+    - name: Wait for LND gRPC to be ready
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 10009
+        timeout: 30
+
+    - name: Unlock wallet
+      ansible.builtin.command:
+        cmd: >
+          lncli
+          --rpcserver=127.0.0.1:10009
+          --tlscertpath={{ lnd_home }}/tls.cert
+          --macaroonpath={{ lnd_home }}/data/chain/bitcoin/{{ lnd_network }}/admin.macaroon
+          unlock --stdin
+        stdin: "{{ vault_lnd_wallet_password }}"
+      become_user: lnd
+      no_log: true
+      changed_when: true

@@ -1,11 +1,16 @@
 /// <reference lib="deno.ns" />
 import type { StorageClient } from "../storage/client.ts";
-import type { ValidationResult } from "../types.ts";
+import type { LightningConfig, ValidationResult } from "../types.ts";
 import { loadPaymentConfig, paymentsEnabled } from "./payment-config.ts";
 import { loadCacheConfig } from "./cache-config.ts";
 import { loadPricingConfig, getBtcUsdPrice, computeSatPrice } from "./price-feed.ts";
 import { buildPaymentRequired } from "./payments.ts";
 import { validateCashuPayment, buildPaymentError } from "./proof-validator.ts";
+import {
+  loadLightningConfig,
+  createInvoice,
+  validateLightningPayment,
+} from "./lightning-validator.ts";
 
 /** Hardcoded path to the operator pricing TOML (same pattern as PAYMENT_CACHE_TTL_MS in payment-config.ts) */
 const PRICING_TOML_PATH = "config/payment.toml";
@@ -23,9 +28,23 @@ export interface PaymentGateDeps {
     token: string,
     mints: string[],
     requiredSats: number,
+    storage?: StorageClient,
   ) => Promise<ValidationResult>;
   /** Override for getBtcUsdPrice (allows test injection) */
   getBtcPrice?: () => Promise<number | null>;
+  /** Override for validateLightningPayment (allows test injection) */
+  validateLightning?: (
+    preimage: string,
+    requiredSats: number,
+    config: LightningConfig,
+  ) => Promise<ValidationResult>;
+  /** Override for createInvoice (allows test injection) */
+  createLnInvoice?: (
+    amountSats: number,
+    config: LightningConfig,
+  ) => Promise<string | null>;
+  /** Override for loadLightningConfig (allows test injection) */
+  loadLnConfig?: () => LightningConfig | null;
 }
 
 /**
@@ -49,6 +68,9 @@ export async function paymentGate(
   const pricingTomlPath = deps?.pricingTomlPath ?? PRICING_TOML_PATH;
   const validate = deps?.validatePayment ?? validateCashuPayment;
   const getPrice = deps?.getBtcPrice ?? getBtcUsdPrice;
+  const validateLn = deps?.validateLightning ?? validateLightningPayment;
+  const createLn = deps?.createLnInvoice ?? createInvoice;
+  const getLnConfig = deps?.loadLnConfig ?? loadLightningConfig;
 
   // Step 1: Load cache config for operator-configured TTL values
   const cacheConfig = await loadCacheConfig(storage);
@@ -56,18 +78,21 @@ export async function paymentGate(
   // Step 2: Load payment config
   const { config } = await loadPaymentConfig(storage, cacheConfig.paymentTtl);
 
-  // Step 3: Check if payments are enabled — if not, pass through
-  if (!paymentsEnabled(config)) {
+  // Step 3: Load lightning config (null if not configured) — needed for paymentsEnabled check
+  const lnConfig = getLnConfig();
+
+  // Step 4: Check if payments are enabled — if not, pass through
+  if (!paymentsEnabled(config, lnConfig)) {
     return null;
   }
 
-  // Step 4: Load pricing config (env vars → TOML fallback)
+  // Step 5: Load pricing config (env vars → TOML fallback)
   const { pricing } = await loadPricingConfig(pricingTomlPath);
 
-  // Step 5: Read BTC/USD price from in-memory cache
+  // Step 6: Read BTC/USD price from in-memory cache
   const btcUsd = await getPrice();
 
-  // Step 6: Fail closed if price unavailable — reject with 503 (never allow free uploads due to feed outage)
+  // Step 7: Fail closed if price unavailable — reject with 503 (never allow free uploads due to feed outage)
   if (btcUsd === null) {
     console.warn("[payment-gate] BTC price unavailable — failing closed (503)");
     return new Response(null, {
@@ -80,25 +105,45 @@ export async function paymentGate(
     });
   }
 
-  // Step 7: Extract X-Cashu header from request
+  // Step 8: Extract payment headers (unchanged)
   const cashuToken = request.headers.get("X-Cashu");
+  const lightningPreimage = request.headers.get("X-Lightning");
 
-  // Step 8: No proof provided — return 402 Payment Required
-  if (!cashuToken) {
-    const mintList = config.mints.map((m) => m.url);
-    return buildPaymentRequired(fileSizeBytes, mintList, btcUsd, pricing);
-  }
-
-  // Step 9: Validate Cashu proof
   const mintList = config.mints.map((m) => m.url);
   const requiredSats = computeSatPrice(fileSizeBytes, btcUsd, pricing);
-  const result = await validate(cashuToken, mintList, requiredSats);
 
-  // Step 10: Invalid proof — return error response (400 or 503)
-  if (!result.valid) {
-    return buildPaymentError(result);
+  // Step 9: X-Lightning preimage provided — validate Lightning payment
+  if (lightningPreimage) {
+    if (!lnConfig) {
+      return new Response(null, {
+        status: 400,
+        headers: {
+          "X-Reason": "lightning_not_supported",
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+    const lnResult = await validateLn(lightningPreimage, requiredSats, lnConfig);
+    if (!lnResult.valid) {
+      return buildPaymentError(lnResult);
+    }
+    return null;
   }
 
-  // Step 11: Valid proof — allow through
-  return null;
+  // Step 10: X-Cashu token provided — validate Cashu payment (existing path)
+  if (cashuToken) {
+    const result = await validate(cashuToken, mintList, requiredSats, storage);
+    if (!result.valid) {
+      return buildPaymentError(result);
+    }
+    return null;
+  }
+
+  // Step 11: No payment header — return 402 Payment Required
+  // Attempt to create Lightning invoice (graceful — Cashu-only if LND unreachable)
+  let bolt11: string | undefined;
+  if (lnConfig) {
+    bolt11 = (await createLn(requiredSats, lnConfig)) ?? undefined;
+  }
+  return buildPaymentRequired(fileSizeBytes, mintList, btcUsd, pricing, bolt11);
 }

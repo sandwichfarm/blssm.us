@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+
+{{ mint_domain }} {
+	handle /lnd/* {
+		uri strip_prefix /lnd
+		reverse_proxy 127.0.0.1:8080 {
+			transport http {
+				tls_insecure_skip_verify
+			}
+		}
+	}
+	handle {
+		reverse_proxy 127.0.0.1:{{ nutshell_port }}
+	}
+}

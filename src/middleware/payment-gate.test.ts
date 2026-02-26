@@ -21,11 +21,14 @@ function makeStorage(paymentJson: unknown): StorageClient {
   } as unknown as StorageClient;
 }
 
-/** Create a minimal Request with optional X-Cashu header */
-function makeRequest(cashuHeader?: string): Request {
+/** Create a minimal Request with optional payment headers */
+function makeRequest(cashuHeader?: string, lightningHeader?: string): Request {
   const headers: Record<string, string> = {};
   if (cashuHeader !== undefined) {
     headers["X-Cashu"] = cashuHeader;
+  }
+  if (lightningHeader !== undefined) {
+    headers["X-Lightning"] = lightningHeader;
   }
   return new Request("https://example.com/upload", {
     method: "PUT",
@@ -42,21 +45,25 @@ function mockGetBtcPrice(price: number | null): () => Promise<number | null> {
 // Test: payments disabled (no mints configured) → returns null
 // ---------------------------------------------------------------------------
 
-Deno.test("paymentGate: returns null when payments disabled (no mints)", async () => {
+Deno.test("paymentGate: returns null when payments disabled (no mints, no LN)", async () => {
   _resetPaymentCacheForTesting();
   _resetPriceCacheForTesting();
   const storage = makeStorage({ mints: [], amounts: { upload: 0, mirror: 0 } });
   const request = makeRequest();
-  const result = await paymentGate(request, storage, 1024);
+  const result = await paymentGate(request, storage, 1024, {
+    loadLnConfig: () => null,
+  });
   assertEquals(result, null);
 });
 
-Deno.test("paymentGate: returns null when payment.json missing (null config)", async () => {
+Deno.test("paymentGate: returns null when payment.json missing and no LN (null config)", async () => {
   _resetPaymentCacheForTesting();
   _resetPriceCacheForTesting();
   const storage = makeStorage(null);
   const request = makeRequest();
-  const result = await paymentGate(request, storage, 1024);
+  const result = await paymentGate(request, storage, 1024, {
+    loadLnConfig: () => null,
+  });
   assertEquals(result, null);
 });
 
@@ -196,4 +203,180 @@ Deno.test("paymentGate: returns 503 with Retry-After when mint unreachable", asy
   assertEquals(result!.headers.get("X-Reason"), "mint_unreachable");
   assertEquals(result!.headers.get("Retry-After"), "30");
   assertEquals(result!.headers.get("Cache-Control"), "no-store");
+});
+
+// ---------------------------------------------------------------------------
+// Test: X-Lightning preimage valid → returns null
+// ---------------------------------------------------------------------------
+
+Deno.test("paymentGate: returns null when valid Lightning preimage provided", async () => {
+  _resetPaymentCacheForTesting();
+  _resetPriceCacheForTesting();
+
+  const storage = makeStorage({
+    mints: [{ url: "https://mint.example.com" }],
+    amounts: { upload: 10, mirror: 5 },
+  });
+  const preimage = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  const request = makeRequest(undefined, preimage);
+
+  let validateCalled = false;
+
+  const result = await paymentGate(request, storage, 1024, {
+    pricingTomlPath: "/tmp/nonexistent-pricing.toml",
+    getBtcPrice: mockGetBtcPrice(50_000),
+    loadLnConfig: () => ({ endpoint: "https://lnd.test", macaroon: "abc" }),
+    validateLightning: async () => {
+      validateCalled = true;
+      return { valid: true };
+    },
+  });
+
+  assertEquals(result, null, "Valid lightning preimage should return null");
+  assertEquals(validateCalled, true, "validateLightning should have been called");
+});
+
+// ---------------------------------------------------------------------------
+// Test: X-Lightning preimage invalid → returns 400
+// ---------------------------------------------------------------------------
+
+Deno.test("paymentGate: returns 400 when Lightning preimage invalid", async () => {
+  _resetPaymentCacheForTesting();
+  _resetPriceCacheForTesting();
+
+  const storage = makeStorage({
+    mints: [{ url: "https://mint.example.com" }],
+    amounts: { upload: 10, mirror: 5 },
+  });
+  const request = makeRequest(undefined, "bad_preimage");
+
+  const result = await paymentGate(request, storage, 1024, {
+    pricingTomlPath: "/tmp/nonexistent-pricing.toml",
+    getBtcPrice: mockGetBtcPrice(50_000),
+    loadLnConfig: () => ({ endpoint: "https://lnd.test", macaroon: "abc" }),
+    validateLightning: async () => {
+      return { valid: false, reason: "invalid_preimage" };
+    },
+  });
+
+  assertEquals(result !== null, true, "Should return a Response");
+  assertEquals(result!.status, 400);
+  assertEquals(result!.headers.get("X-Reason"), "invalid_preimage");
+});
+
+// ---------------------------------------------------------------------------
+// Test: X-Lightning header but LND not configured → 400 lightning_not_supported
+// ---------------------------------------------------------------------------
+
+Deno.test("paymentGate: returns 400 lightning_not_supported when LND not configured", async () => {
+  _resetPaymentCacheForTesting();
+  _resetPriceCacheForTesting();
+
+  const storage = makeStorage({
+    mints: [{ url: "https://mint.example.com" }],
+    amounts: { upload: 10, mirror: 5 },
+  });
+  const request = makeRequest(undefined, "some_preimage");
+
+  const result = await paymentGate(request, storage, 1024, {
+    pricingTomlPath: "/tmp/nonexistent-pricing.toml",
+    getBtcPrice: mockGetBtcPrice(50_000),
+    loadLnConfig: () => null,
+  });
+
+  assertEquals(result !== null, true, "Should return a Response");
+  assertEquals(result!.status, 400);
+  assertEquals(result!.headers.get("X-Reason"), "lightning_not_supported");
+});
+
+// ---------------------------------------------------------------------------
+// Test: LND unreachable on invoice creation → 402 Cashu-only (graceful)
+// ---------------------------------------------------------------------------
+
+Deno.test("paymentGate: returns 402 Cashu-only when LND unreachable for invoice", async () => {
+  _resetPaymentCacheForTesting();
+  _resetPriceCacheForTesting();
+
+  const storage = makeStorage({
+    mints: [{ url: "https://mint.example.com" }],
+    amounts: { upload: 10, mirror: 5 },
+  });
+  const request = makeRequest(); // no payment headers
+
+  const result = await paymentGate(request, storage, 1024 * 1024, {
+    pricingTomlPath: "/tmp/nonexistent-pricing.toml",
+    getBtcPrice: mockGetBtcPrice(50_000),
+    loadLnConfig: () => ({ endpoint: "https://lnd.test", macaroon: "abc" }),
+    createLnInvoice: async () => null, // LND unreachable
+  });
+
+  assertEquals(result !== null, true, "Should return a Response");
+  assertEquals(result!.status, 402);
+  assertEquals(result!.headers.get("X-Cashu") !== null, true, "X-Cashu should be present");
+  assertEquals(result!.headers.get("X-Lightning"), null, "X-Lightning should be absent");
+});
+
+// ---------------------------------------------------------------------------
+// Test: LN-only mode (no mints) → 402 with X-Lightning only
+// ---------------------------------------------------------------------------
+
+Deno.test("paymentGate: returns 402 with X-Lightning only when LN configured but no mints", async () => {
+  _resetPaymentCacheForTesting();
+  _resetPriceCacheForTesting();
+
+  const storage = makeStorage({
+    mints: [],
+    amounts: { upload: 0, mirror: 0 },
+  });
+  const request = makeRequest(); // no payment headers
+
+  const result = await paymentGate(request, storage, 1024 * 1024, {
+    pricingTomlPath: "/tmp/nonexistent-pricing.toml",
+    getBtcPrice: mockGetBtcPrice(50_000),
+    loadLnConfig: () => ({ endpoint: "https://lnd.test", macaroon: "abc" }),
+    createLnInvoice: async () => "lnbc100n1...",
+  });
+
+  assertEquals(result !== null, true, "Should return a Response");
+  assertEquals(result!.status, 402);
+  assertEquals(result!.headers.get("X-Cashu"), null, "X-Cashu should be absent (no mints)");
+  assertEquals(result!.headers.get("X-Lightning"), "lnbc100n1...", "X-Lightning should be present");
+  assertEquals(result!.headers.get("Cache-Control"), "no-store");
+});
+
+// ---------------------------------------------------------------------------
+// Test: both headers present → X-Lightning takes precedence
+// ---------------------------------------------------------------------------
+
+Deno.test("paymentGate: X-Lightning takes precedence over X-Cashu", async () => {
+  _resetPaymentCacheForTesting();
+  _resetPriceCacheForTesting();
+
+  const storage = makeStorage({
+    mints: [{ url: "https://mint.example.com" }],
+    amounts: { upload: 10, mirror: 5 },
+  });
+  const preimage = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  const request = makeRequest("cashuBsome_token", preimage);
+
+  let lightningCalled = false;
+  let cashuCalled = false;
+
+  const result = await paymentGate(request, storage, 1024, {
+    pricingTomlPath: "/tmp/nonexistent-pricing.toml",
+    getBtcPrice: mockGetBtcPrice(50_000),
+    loadLnConfig: () => ({ endpoint: "https://lnd.test", macaroon: "abc" }),
+    validateLightning: async () => {
+      lightningCalled = true;
+      return { valid: true };
+    },
+    validatePayment: async () => {
+      cashuCalled = true;
+      return { valid: true };
+    },
+  });
+
+  assertEquals(result, null, "Should pass through");
+  assertEquals(lightningCalled, true, "Lightning validator should have been called");
+  assertEquals(cashuCalled, false, "Cashu validator should NOT have been called");
 });

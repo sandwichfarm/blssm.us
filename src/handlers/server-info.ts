@@ -3,6 +3,7 @@ import type { StorageClient } from "../storage/client.ts";
 import { loadAccessConfig } from "../middleware/access.ts";
 import { loadPaymentConfig, paymentsEnabled } from "../middleware/payment-config.ts";
 import { loadPricingConfig } from "../middleware/price-feed.ts";
+import { loadLightningConfig } from "../middleware/lightning-validator.ts";
 import { jsonResponse } from "../util.ts";
 
 /**
@@ -32,7 +33,8 @@ export async function handleServerInfo(
     const paymentCache = await loadPaymentConfig(storage);
     const paymentConfig = paymentCache.config;
 
-    if (paymentsEnabled(paymentConfig)) {
+    const lnConfig = loadLightningConfig();
+    if (paymentsEnabled(paymentConfig, lnConfig)) {
       info.paymentsEnabled = true;
 
       const fixedAmounts = paymentConfig.amounts.upload > 0 ||
@@ -48,6 +50,11 @@ export async function handleServerInfo(
       if (!fixedAmounts) {
         const pricingResult = await loadPricingConfig("config/payment.toml");
         info.payment.pricing = pricingResult.pricing;
+      }
+
+      // Include lightning flag when LND is configured
+      if (lnConfig) {
+        info.payment.lightning = true;
       }
     }
   }

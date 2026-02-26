@@ -1,0 +1,9 @@
+---
+all:
+  children:
+    mint:
+      hosts:
+        mint-server:
+          ansible_host: 1.2.3.4          # Replace with your VPS IP
+          ansible_user: root              # Or your sudo-capable user
+          ansible_port: 22

@@ -1,0 +1,6 @@
+---
+- name: restart lnd
+  ansible.builtin.systemd:
+    name: lnd
+    daemon_reload: true
+    state: restarted

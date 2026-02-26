@@ -1,0 +1,12 @@
+---
+# Copy this file to vault.yml and encrypt with:
+#   ansible-vault encrypt inventory/group_vars/mint/vault.yml
+#
+# Generate values:
+#   vault_lnd_wallet_password: use a strong passphrase
+#   vault_mint_private_key:    openssl rand -hex 32
+#   vault_mint_db_password:    openssl rand -base64 24
+
+vault_lnd_wallet_password: "CHANGE_ME"
+vault_mint_private_key: "CHANGE_ME"
+vault_mint_db_password: "CHANGE_ME"

@@ -1,0 +1,113 @@
+---
+- name: Create lnd group
+  ansible.builtin.group:
+    name: lnd
+    system: true
+
+- name: Create lnd user
+  ansible.builtin.user:
+    name: lnd
+    group: lnd
+    system: true
+    home: "{{ lnd_home }}"
+    create_home: true
+    shell: /usr/sbin/nologin
+
+- name: Check current LND version
+  ansible.builtin.command:
+    cmd: /usr/local/bin/lnd --version
+  register: lnd_current_version
+  changed_when: false
+  failed_when: false
+
+- name: Set LND download URL
+  ansible.builtin.set_fact:
+    lnd_archive: "lnd-{{ lnd_arch }}-v{{ lnd_version }}.tar.gz"
+    lnd_download_url: "https://github.com/lightningnetwork/lnd/releases/download/v{{ lnd_version }}"
+
+- name: Download LND manifest and signature
+  ansible.builtin.get_url:
+    url: "{{ lnd_download_url }}/{{ item }}"
+    dest: "/tmp/{{ item }}"
+    mode: "0644"
+  loop:
+    - "manifest-v{{ lnd_version }}.txt"
+    - "manifest-v{{ lnd_version }}.sig"
+    - "{{ lnd_archive }}"
+  when: >
+    lnd_current_version.rc != 0 or
+    ('v' + lnd_version) not in (lnd_current_version.stdout | default(''))
+
+- name: Verify SHA256 checksum
+  ansible.builtin.shell:
+    cmd: >
+      grep "{{ lnd_archive }}" /tmp/manifest-v{{ lnd_version }}.txt | sha256sum -c -
+    chdir: /tmp
+  when: >
+    lnd_current_version.rc != 0 or
+    ('v' + lnd_version) not in (lnd_current_version.stdout | default(''))
+  changed_when: false
+
+- name: Extract LND binaries
+  ansible.builtin.unarchive:
+    src: "/tmp/{{ lnd_archive }}"
+    dest: /usr/local/bin/
+    remote_src: true
+    extra_opts:
+      - --strip-components=1
+    include:
+      - "*/lnd"
+      - "*/lncli"
+  when: >
+    lnd_current_version.rc != 0 or
+    ('v' + lnd_version) not in (lnd_current_version.stdout | default(''))
+  notify: restart lnd
+
+- name: Clean up downloaded files
+  ansible.builtin.file:
+    path: "/tmp/{{ item }}"
+    state: absent
+  loop:
+    - "manifest-v{{ lnd_version }}.txt"
+    - "manifest-v{{ lnd_version }}.sig"
+    - "{{ lnd_archive }}"
+
+- name: Create LND data directory
+  ansible.builtin.file:
+    path: "{{ lnd_home }}/.lnd"
+    state: directory
+    owner: lnd
+    group: lnd
+    mode: "0750"
+
+- name: Deploy lnd.conf
+  ansible.builtin.template:
+    src: lnd.conf.j2
+    dest: "{{ lnd_home }}/.lnd/lnd.conf"
+    owner: lnd
+    group: lnd
+    mode: "0640"
+  notify: restart lnd
+
+- name: Deploy wallet password file
+  ansible.builtin.copy:
+    content: "{{ vault_lnd_wallet_password }}"
+    dest: "{{ lnd_home }}/.walletpw"
+    owner: lnd
+    group: lnd
+    mode: "0400"
+  no_log: true
+
+- name: Deploy LND systemd unit
+  ansible.builtin.template:
+    src: lnd.service.j2
+    dest: /etc/systemd/system/lnd.service
+    mode: "0644"
+  notify: restart lnd
+
+- name: Enable and start LND
+  ansible.builtin.systemd:
+    name: lnd
+    daemon_reload: true
+    enabled: true
+    state: started

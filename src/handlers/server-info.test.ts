@@ -121,18 +121,57 @@ Deno.test("server-info: missing configs → safe defaults", async () => {
   assertEquals(body.paymentsEnabled, false);
 });
 
-Deno.test("server-info: payments enabled but no mints → payments disabled", async () => {
+Deno.test("server-info: payments enabled but no mints, no LN → payments disabled", async () => {
   resetCaches();
-  const storage = makeStorage({
-    "config/access.json": { public: true, allowlist: [], blocklist: [], payments: true },
-    "config/payment.json": {
-      mints: [],
-      amounts: { upload: 100, mirror: 50 },
-    },
-  });
-  const res = await handleServerInfo(storage);
-  assertEquals(res.status, 200);
-  const body = await res.json();
-  assertEquals(body.paymentsEnabled, false);
-  assertEquals(body.payment, undefined);
+  // Ensure no LND env vars are set
+  const savedUrl = Deno.env.get("LND_REST_URL");
+  const savedMac = Deno.env.get("LND_INVOICE_MACAROON");
+  Deno.env.delete("LND_REST_URL");
+  Deno.env.delete("LND_INVOICE_MACAROON");
+  try {
+    const storage = makeStorage({
+      "config/access.json": { public: true, allowlist: [], blocklist: [], payments: true },
+      "config/payment.json": {
+        mints: [],
+        amounts: { upload: 100, mirror: 50 },
+      },
+    });
+    const res = await handleServerInfo(storage);
+    assertEquals(res.status, 200);
+    const body = await res.json();
+    assertEquals(body.paymentsEnabled, false);
+    assertEquals(body.payment, undefined);
+  } finally {
+    if (savedUrl) Deno.env.set("LND_REST_URL", savedUrl);
+    if (savedMac) Deno.env.set("LND_INVOICE_MACAROON", savedMac);
+  }
+});
+
+Deno.test("server-info: lightning-only → paymentsEnabled true, lightning flag, mints empty", async () => {
+  resetCaches();
+  // Set LND env vars to enable lightning-only mode
+  const savedUrl = Deno.env.get("LND_REST_URL");
+  const savedMac = Deno.env.get("LND_INVOICE_MACAROON");
+  Deno.env.set("LND_REST_URL", "https://lnd.test");
+  Deno.env.set("LND_INVOICE_MACAROON", "deadbeef");
+  try {
+    const storage = makeStorage({
+      "config/access.json": { public: true, allowlist: [], blocklist: [], payments: true },
+      "config/payment.json": {
+        mints: [],
+        amounts: { upload: 0, mirror: 0 },
+      },
+    });
+    const res = await handleServerInfo(storage);
+    assertEquals(res.status, 200);
+    const body = await res.json();
+    assertEquals(body.paymentsEnabled, true);
+    assertEquals(body.payment.mints, []);
+    assertEquals(body.payment.lightning, true);
+  } finally {
+    if (savedUrl) Deno.env.set("LND_REST_URL", savedUrl);
+    else Deno.env.delete("LND_REST_URL");
+    if (savedMac) Deno.env.set("LND_INVOICE_MACAROON", savedMac);
+    else Deno.env.delete("LND_INVOICE_MACAROON");
+  }
 });
