@@ -1,4 +1,5 @@
 import type { Config } from "../types.ts";
+import { parse as parseToml } from "@std/toml";
 
 /** Bunny Storage REST API client */
 export class StorageClient {
@@ -69,6 +70,28 @@ export class StorageClient {
     if (!resp) return null;
     try {
       return (await resp.json()) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Read raw text from storage */
+  async getText(path: string): Promise<string | null> {
+    const resp = await this.get(path);
+    if (!resp) return null;
+    try {
+      return await resp.text();
+    } catch {
+      return null;
+    }
+  }
+
+  /** Read and parse TOML from storage */
+  async getToml<T>(path: string): Promise<T | null> {
+    const text = await this.getText(path);
+    if (!text) return null;
+    try {
+      return parseToml(text) as T;
     } catch {
       return null;
     }

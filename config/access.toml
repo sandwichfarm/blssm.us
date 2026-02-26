@@ -1,0 +1,17 @@
+# Access control configuration
+# public = true  → anyone can publish (unless on blocklist)
+# public = false → only allowlisted pubkeys can publish
+public = true
+
+# Enable Cashu payment gating for unlisted pubkeys (only meaningful when public = true)
+payments = false
+
+# Hex pubkeys always allowed (in public+payments mode, also skip payment)
+allowlist = [
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+]
+
+# Hex pubkeys always denied (in public mode; ignored in private mode)
+blocklist = [
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+]

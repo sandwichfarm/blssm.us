@@ -199,3 +199,103 @@ Deno.test("PAY-02: loadPaymentConfig refreshes after TTL expires", async () => {
   await loadPaymentConfig(storage);
   assertEquals(callCount, 2, "getJson should be called again after TTL expires");
 });
+
+// ---------------------------------------------------------------------------
+// Env-var-first loading tests
+// ---------------------------------------------------------------------------
+
+/** Save and restore env vars around a test */
+function withEnvVars(
+  vars: Record<string, string | undefined>,
+  fn: () => Promise<void>,
+): () => Promise<void> {
+  return async () => {
+    const saved: Record<string, string | undefined> = {};
+    for (const key of Object.keys(vars)) {
+      saved[key] = Deno.env.get(key);
+    }
+    try {
+      for (const [key, val] of Object.entries(vars)) {
+        if (val === undefined) Deno.env.delete(key);
+        else Deno.env.set(key, val);
+      }
+      await fn();
+    } finally {
+      for (const [key, val] of Object.entries(saved)) {
+        if (val === undefined) Deno.env.delete(key);
+        else Deno.env.set(key, val);
+      }
+    }
+  };
+}
+
+Deno.test(
+  "ENV: PRICING_MINT_URLS set → env vars take priority over storage",
+  withEnvVars(
+    {
+      PRICING_MINT_URLS: "https://mint.a.com,https://mint.b.com",
+      PAYMENT_UPLOAD_AMOUNT: "200",
+      PAYMENT_MIRROR_AMOUNT: "100",
+    },
+    async () => {
+      _resetPaymentCacheForTesting();
+      let storageCalled = false;
+      const storage: StorageClient = {
+        getJson: async () => { storageCalled = true; return null; },
+      } as unknown as StorageClient;
+      const result = await loadPaymentConfig(storage);
+      assertEquals(storageCalled, false, "storage should NOT be called when env vars are set");
+      assertEquals(result.config.mints.length, 2);
+      assertEquals(result.config.mints[0].url, "https://mint.a.com");
+      assertEquals(result.config.mints[1].url, "https://mint.b.com");
+      assertEquals(result.config.amounts.upload, 200);
+      assertEquals(result.config.amounts.mirror, 100);
+    },
+  ),
+);
+
+Deno.test(
+  "ENV: PRICING_MINT_URLS not set → falls back to storage",
+  withEnvVars(
+    {
+      PRICING_MINT_URLS: undefined,
+      PAYMENT_UPLOAD_AMOUNT: undefined,
+      PAYMENT_MIRROR_AMOUNT: undefined,
+    },
+    async () => {
+      _resetPaymentCacheForTesting();
+      let storageCalled = false;
+      const storage: StorageClient = {
+        getJson: async () => {
+          storageCalled = true;
+          return { mints: [{ url: "https://fallback.example.com" }], amounts: { upload: 50, mirror: 25 } };
+        },
+      } as unknown as StorageClient;
+      const result = await loadPaymentConfig(storage);
+      assertEquals(storageCalled, true, "storage should be called when env vars are not set");
+      assertEquals(result.config.mints.length, 1);
+      assertEquals(result.config.mints[0].url, "https://fallback.example.com");
+    },
+  ),
+);
+
+Deno.test(
+  "ENV: missing amount env vars default to 0",
+  withEnvVars(
+    {
+      PRICING_MINT_URLS: "https://mint.example.com",
+      PAYMENT_UPLOAD_AMOUNT: undefined,
+      PAYMENT_MIRROR_AMOUNT: undefined,
+    },
+    async () => {
+      _resetPaymentCacheForTesting();
+      const storage: StorageClient = {
+        getJson: async () => null,
+      } as unknown as StorageClient;
+      const result = await loadPaymentConfig(storage);
+      assertEquals(result.config.amounts.upload, 0);
+      assertEquals(result.config.amounts.mirror, 0);
+      assertEquals(result.config.mints.length, 1);
+    },
+  ),
+);

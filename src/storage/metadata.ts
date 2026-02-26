@@ -120,7 +120,7 @@ export async function addReport(
 
 /** Get the blocked hashes list */
 export async function getBlocked(storage: StorageClient): Promise<BlockedConfig> {
-  return (await storage.getJson<BlockedConfig>("config/blocked.json")) || { hashes: [] };
+  return (await storage.getToml<BlockedConfig>("config/blocked.toml")) || { hashes: [] };
 }
 
 /** In-memory cache for blocked hashes (persists within edge instance lifetime) */
@@ -137,7 +137,7 @@ export async function isBlocked(
   if (blockedCache && now < blockedCache.expires) {
     return blockedCache.hashes.has(sha256);
   }
-  const config = (await storage.getJson<BlockedConfig>("config/blocked.json")) || { hashes: [] };
+  const config = (await storage.getToml<BlockedConfig>("config/blocked.toml")) || { hashes: [] };
   blockedCache = { hashes: new Set(config.hashes), expires: now + ttlMs };
   return blockedCache.hashes.has(sha256);
 }

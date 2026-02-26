@@ -146,3 +146,99 @@ Deno.test("CACHE-02: loadCacheConfig refreshes after TTL expires", async () => {
   await loadCacheConfig(storage);
   assertEquals(callCount, 2, "getJson should be called again after reset (simulating TTL expiry)");
 });
+
+// ---------------------------------------------------------------------------
+// Env-var-first loading tests
+// ---------------------------------------------------------------------------
+
+/** Save and restore env vars around a test */
+function withEnvVars(
+  vars: Record<string, string | undefined>,
+  fn: () => Promise<void>,
+): () => Promise<void> {
+  return async () => {
+    const saved: Record<string, string | undefined> = {};
+    for (const key of Object.keys(vars)) {
+      saved[key] = Deno.env.get(key);
+    }
+    try {
+      for (const [key, val] of Object.entries(vars)) {
+        if (val === undefined) Deno.env.delete(key);
+        else Deno.env.set(key, val);
+      }
+      await fn();
+    } finally {
+      for (const [key, val] of Object.entries(saved)) {
+        if (val === undefined) Deno.env.delete(key);
+        else Deno.env.set(key, val);
+      }
+    }
+  };
+}
+
+Deno.test(
+  "ENV: CACHE_ACCESS_TTL set → env vars take priority over storage",
+  withEnvVars(
+    {
+      CACHE_ACCESS_TTL: "30",
+      CACHE_PAYMENT_TTL: "120",
+      CACHE_BLOCKED_TTL: "300",
+    },
+    async () => {
+      _resetCacheCacheForTesting();
+      let storageCalled = false;
+      const storage: StorageClient = {
+        getJson: async () => { storageCalled = true; return null; },
+      } as unknown as StorageClient;
+      const config = await loadCacheConfig(storage);
+      assertEquals(storageCalled, false, "storage should NOT be called when env vars are set");
+      assertEquals(config.accessTtl, 30_000);
+      assertEquals(config.paymentTtl, 120_000);
+      assertEquals(config.blockedTtl, 300_000);
+    },
+  ),
+);
+
+Deno.test(
+  "ENV: no CACHE_ env vars set → falls back to storage",
+  withEnvVars(
+    {
+      CACHE_ACCESS_TTL: undefined,
+      CACHE_PAYMENT_TTL: undefined,
+      CACHE_BLOCKED_TTL: undefined,
+    },
+    async () => {
+      _resetCacheCacheForTesting();
+      let storageCalled = false;
+      const storage: StorageClient = {
+        getJson: async () => { storageCalled = true; return { accessTtl: 10, paymentTtl: 20, blockedTtl: 30 }; },
+      } as unknown as StorageClient;
+      const config = await loadCacheConfig(storage);
+      assertEquals(storageCalled, true, "storage should be called when env vars are not set");
+      assertEquals(config.accessTtl, 10_000);
+      assertEquals(config.paymentTtl, 20_000);
+      assertEquals(config.blockedTtl, 30_000);
+    },
+  ),
+);
+
+Deno.test(
+  "ENV: partial CACHE_ env vars → set fields from env, others default to 60s",
+  withEnvVars(
+    {
+      CACHE_ACCESS_TTL: "15",
+      CACHE_PAYMENT_TTL: undefined,
+      CACHE_BLOCKED_TTL: undefined,
+    },
+    async () => {
+      _resetCacheCacheForTesting();
+      const storage: StorageClient = {
+        getJson: async () => null,
+      } as unknown as StorageClient;
+      const config = await loadCacheConfig(storage);
+      assertEquals(config.accessTtl, 15_000);
+      assertEquals(config.paymentTtl, 60_000);
+      assertEquals(config.blockedTtl, 60_000);
+    },
+  ),
+);

@@ -49,7 +49,7 @@ export interface BlockedConfig {
   hashes: string[];
 }
 
-/** Access control configuration from config/access.json */
+/** Access control configuration — loaded from env vars or config/access.json fallback */
 export interface AccessConfig {
   /** true = public mode (anyone can publish unless on blocklist)
    *  false = private mode (only allowlisted pubkeys can publish) */
@@ -121,7 +121,7 @@ export interface PaymentAmounts {
 }
 
 /**
- * Operator configuration from config/payment.json.
+ * Operator payment configuration — loaded from env vars or config/payment.json fallback.
  * NOT the same as PaymentInfo (which is the 402 response format sent to clients).
  * An empty mints array disables payments entirely, even if amounts are set.
  */
@@ -179,15 +179,15 @@ export interface ServerInfo {
 }
 
 /**
- * Cache TTL configuration from config/cache.json.
- * All values are in milliseconds internally (JSON values are in seconds).
- * Missing config/cache.json defaults to 60 seconds for all caches.
+ * Cache TTL configuration — loaded from env vars or config/cache.json fallback.
+ * All values are in milliseconds internally (source values are in seconds).
+ * Missing config defaults to 60 seconds for all caches.
  */
 export interface CacheConfig {
-  /** TTL in ms for the access config cache (config/access.json) */
+  /** TTL in ms for the access config cache */
   accessTtl: number;
-  /** TTL in ms for the payment config cache (config/payment.json) */
+  /** TTL in ms for the payment config cache */
   paymentTtl: number;
-  /** TTL in ms for the blocked hashes cache (config/blocked.json) */
+  /** TTL in ms for the blocked hashes cache (config/blocked.toml in storage) */
   blockedTtl: number;
 }

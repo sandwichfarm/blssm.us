@@ -44,6 +44,46 @@ function filterPubkeys(list: unknown, fieldName: string): string[] {
   });
 }
 
+/**
+ * Try to load access config from environment variables.
+ * Returns null if ACCESS_PUBLIC is not set (signal: env not configured).
+ */
+function loadAccessConfigFromEnv(): AccessConfig | null {
+  const publicRaw = process.env["ACCESS_PUBLIC"];
+  if (publicRaw === undefined) return null;
+
+  const isPublic = publicRaw === "true";
+  const payments = process.env["ACCESS_PAYMENTS"] === "true";
+
+  const allowlistRaw = process.env["ACCESS_ALLOWLIST"] || "";
+  const blocklistRaw = process.env["ACCESS_BLOCKLIST"] || "";
+
+  const allowlist = allowlistRaw
+    ? allowlistRaw.split(",").map((s) => s.trim()).filter((s) => s.length > 0)
+    : [];
+  const blocklist = blocklistRaw
+    ? blocklistRaw.split(",").map((s) => s.trim()).filter((s) => s.length > 0)
+    : [];
+
+  // Validate and filter pubkeys through the same path as storage-loaded configs
+  const validAllowlist = filterPubkeys(allowlist, "allowlist");
+  const validBlocklist = filterPubkeys(blocklist, "blocklist");
+
+  // Apply same normalization: payments=true in private mode is forced to false
+  let normalizedPayments = payments;
+  if (normalizedPayments && !isPublic) {
+    console.warn("[access] payments=true ignored in private mode (public=false)");
+    normalizedPayments = false;
+  }
+
+  return {
+    public: isPublic,
+    allowlist: validAllowlist,
+    blocklist: validBlocklist,
+    payments: normalizedPayments,
+  };
+}
+
 /** Normalize raw JSON into a valid AccessConfig — handles null (CFG-07) and invalid entries (CFG-06) */
 function normalizeAccessConfig(raw: unknown): AccessConfig {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_ACCESS_CONFIG };
@@ -91,7 +131,7 @@ export type AccessResult =
   | { allowed: true }
   | { allowed: false; reason: string; requiresPayment?: true };
 
-/** Load and cache access config — 60s TTL by default, same pattern as isBlocked() (CFG-01, CFG-02) */
+/** Load and cache access config — env vars → storage fallback → defaults. 60s TTL by default. */
 export async function loadAccessConfig(
   storage: StorageClient,
   ttlMs: number = ACCESS_CACHE_TTL_MS,
@@ -100,9 +140,13 @@ export async function loadAccessConfig(
   if (accessCache && now < accessCache.expires) {
     return accessCache;
   }
-  // Missing file → null → normalizeAccessConfig returns defaults (CFG-07)
-  const raw = await storage.getJson<unknown>("config/access.json");
-  const config = normalizeAccessConfig(raw);
+
+  // Try env vars first
+  const fromEnv = loadAccessConfigFromEnv();
+  const config = fromEnv ?? normalizeAccessConfig(
+    await storage.getJson<unknown>("config/access.json"),
+  );
+
   accessCache = {
     config,
     allowlist: new Set(config.allowlist),

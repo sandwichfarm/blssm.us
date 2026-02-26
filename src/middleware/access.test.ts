@@ -307,3 +307,145 @@ Deno.test("Normalizer: raw config is a number → returns defaults", async () =>
   assertEquals(cache.config.allowlist.length, 0);
   assertEquals(cache.config.blocklist.length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Env-var-first loading tests
+// ---------------------------------------------------------------------------
+
+/** Save and restore env vars around a test */
+function withEnvVars(
+  vars: Record<string, string | undefined>,
+  fn: () => Promise<void>,
+): () => Promise<void> {
+  return async () => {
+    const saved: Record<string, string | undefined> = {};
+    for (const key of Object.keys(vars)) {
+      saved[key] = Deno.env.get(key);
+    }
+    try {
+      for (const [key, val] of Object.entries(vars)) {
+        if (val === undefined) Deno.env.delete(key);
+        else Deno.env.set(key, val);
+      }
+      await fn();
+    } finally {
+      for (const [key, val] of Object.entries(saved)) {
+        if (val === undefined) Deno.env.delete(key);
+        else Deno.env.set(key, val);
+      }
+    }
+  };
+}
+
+Deno.test(
+  "ENV: ACCESS_PUBLIC set → env vars take priority over storage",
+  withEnvVars(
+    {
+      ACCESS_PUBLIC: "true",
+      ACCESS_PAYMENTS: "true",
+      ACCESS_ALLOWLIST: PUB_ALLOWED,
+      ACCESS_BLOCKLIST: PUB_BLOCKED,
+    },
+    async () => {
+      _resetAccessCacheForTesting();
+      let storageCalled = false;
+      const storage: StorageClient = {
+        getJson: async () => { storageCalled = true; return null; },
+      } as unknown as StorageClient;
+      const cache = await loadAccessConfig(storage);
+      assertEquals(storageCalled, false, "storage should NOT be called when env vars are set");
+      assertEquals(cache.config.public, true);
+      assertEquals(cache.config.payments, true);
+      assertEquals(cache.config.allowlist, [PUB_ALLOWED]);
+      assertEquals(cache.config.blocklist, [PUB_BLOCKED]);
+    },
+  ),
+);
+
+Deno.test(
+  "ENV: ACCESS_PUBLIC not set → falls back to storage",
+  withEnvVars(
+    {
+      ACCESS_PUBLIC: undefined,
+      ACCESS_PAYMENTS: undefined,
+      ACCESS_ALLOWLIST: undefined,
+      ACCESS_BLOCKLIST: undefined,
+    },
+    async () => {
+      _resetAccessCacheForTesting();
+      let storageCalled = false;
+      const storage: StorageClient = {
+        getJson: async () => { storageCalled = true; return { public: false, allowlist: [PUB_ALLOWED], blocklist: [], payments: false }; },
+      } as unknown as StorageClient;
+      const cache = await loadAccessConfig(storage);
+      assertEquals(storageCalled, true, "storage should be called when env vars are not set");
+      assertEquals(cache.config.public, false);
+    },
+  ),
+);
+
+Deno.test(
+  "ENV: ACCESS_PUBLIC='false' → private mode via env",
+  withEnvVars(
+    {
+      ACCESS_PUBLIC: "false",
+      ACCESS_PAYMENTS: undefined,
+      ACCESS_ALLOWLIST: PUB_ALLOWED,
+      ACCESS_BLOCKLIST: undefined,
+    },
+    async () => {
+      _resetAccessCacheForTesting();
+      const storage: StorageClient = {
+        getJson: async () => null,
+      } as unknown as StorageClient;
+      const cache = await loadAccessConfig(storage);
+      assertEquals(cache.config.public, false);
+      assertEquals(cache.config.payments, false);
+      assertEquals(cache.config.allowlist, [PUB_ALLOWED]);
+    },
+  ),
+);
+
+Deno.test(
+  "ENV: comma-separated allowlist/blocklist parsed correctly",
+  withEnvVars(
+    {
+      ACCESS_PUBLIC: "true",
+      ACCESS_PAYMENTS: undefined,
+      ACCESS_ALLOWLIST: `${PUB_ALLOWED},${PUB_CLEAN}`,
+      ACCESS_BLOCKLIST: PUB_BLOCKED,
+    },
+    async () => {
+      _resetAccessCacheForTesting();
+      const storage: StorageClient = {
+        getJson: async () => null,
+      } as unknown as StorageClient;
+      const cache = await loadAccessConfig(storage);
+      assertEquals(cache.config.allowlist.length, 2);
+      assertEquals(cache.config.allowlist[0], PUB_ALLOWED);
+      assertEquals(cache.config.allowlist[1], PUB_CLEAN);
+      assertEquals(cache.config.blocklist, [PUB_BLOCKED]);
+    },
+  ),
+);
+
+Deno.test(
+  "ENV: invalid pubkeys in env are filtered out",
+  withEnvVars(
+    {
+      ACCESS_PUBLIC: "true",
+      ACCESS_PAYMENTS: undefined,
+      ACCESS_ALLOWLIST: `not-a-pubkey,${PUB_ALLOWED}`,
+      ACCESS_BLOCKLIST: undefined,
+    },
+    async () => {
+      _resetAccessCacheForTesting();
+      const storage: StorageClient = {
+        getJson: async () => null,
+      } as unknown as StorageClient;
+      const cache = await loadAccessConfig(storage);
+      assertEquals(cache.config.allowlist.length, 1);
+      assertEquals(cache.config.allowlist[0], PUB_ALLOWED);
+    },
+  ),
+);

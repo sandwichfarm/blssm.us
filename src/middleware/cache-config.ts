@@ -40,6 +40,26 @@ function clampTtl(raw: unknown): number {
 }
 
 /**
+ * Try to load cache config from environment variables.
+ * Returns null if none of the env vars are set (signal: env not configured).
+ * Env var values are in seconds, converted to ms via clampTtl.
+ */
+function loadCacheConfigFromEnv(): CacheConfig | null {
+  const accessRaw = process.env["CACHE_ACCESS_TTL"];
+  const paymentRaw = process.env["CACHE_PAYMENT_TTL"];
+  const blockedRaw = process.env["CACHE_BLOCKED_TTL"];
+
+  // If none are set, signal that env is not configured
+  if (!accessRaw && !paymentRaw && !blockedRaw) return null;
+
+  return {
+    accessTtl: accessRaw ? clampTtl(parseFloat(accessRaw)) : DEFAULT_CACHE_TTL_MS,
+    paymentTtl: paymentRaw ? clampTtl(parseFloat(paymentRaw)) : DEFAULT_CACHE_TTL_MS,
+    blockedTtl: blockedRaw ? clampTtl(parseFloat(blockedRaw)) : DEFAULT_CACHE_TTL_MS,
+  };
+}
+
+/**
  * Normalize raw JSON into a valid CacheConfig.
  * JSON values are in seconds; internal values are in milliseconds.
  * Handles null (missing file), non-object, and partial inputs with 60s defaults.
@@ -57,7 +77,7 @@ export function normalizeCacheConfig(raw: unknown): CacheConfig {
 }
 
 /**
- * Load and cache the cache config from config/cache.json — 60s TTL.
+ * Load and cache the cache config — env vars → storage fallback → defaults. 60s meta-TTL.
  * The meta-cache TTL is hardcoded (not configurable by the cache config it loads).
  * Returns the CacheConfig directly (not the wrapper) for downstream consumption.
  */
@@ -66,8 +86,13 @@ export async function loadCacheConfig(storage: StorageClient): Promise<CacheConf
   if (cacheConfigCache && now < cacheConfigCache.expires) {
     return cacheConfigCache.config;
   }
-  const raw = await storage.getJson<unknown>("config/cache.json");
-  const config = normalizeCacheConfig(raw);
+
+  // Try env vars first
+  const fromEnv = loadCacheConfigFromEnv();
+  const config = fromEnv ?? normalizeCacheConfig(
+    await storage.getJson<unknown>("config/cache.json"),
+  );
+
   cacheConfigCache = {
     config,
     expires: now + DEFAULT_CACHE_TTL_MS,

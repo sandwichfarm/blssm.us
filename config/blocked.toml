@@ -1,0 +1,6 @@
+# Blocked content hashes — runtime-mutated via reports/moderation
+# This file stays in Bunny Storage (not synced to env vars)
+
+hashes = [
+  "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+]

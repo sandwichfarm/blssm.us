@@ -5,6 +5,11 @@ url = "https://mint.minibits.cash/Bitcoin"
 [[mints]]
 url = "https://mint.coinos.io"
 
+# Per-action payment amounts in satoshis (0 = free)
+[amounts]
+upload = 100
+mirror = 50
+
 # USD-basis pricing parameters
 [pricing]
 cost_per_gb_usd = 0.02

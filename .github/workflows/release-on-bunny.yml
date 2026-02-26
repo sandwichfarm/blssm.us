@@ -27,7 +27,7 @@ jobs:
       - name: Build
         run: deno task build
 
-      - name: Sync pricing config to Bunny env vars
+      - name: Sync TOML configs to Bunny env vars
         env:
           BUNNY_API_KEY: ${{ secrets.BUNNY_API_KEY }}
         run: |
@@ -41,24 +41,54 @@ jobs:
               -d "{\"Name\":\"$1\",\"DefaultValue\":\"$2\",\"Required\":false}"
           }
 
-          TOML="config/payment.toml"
-
-          # Parse TOML properly via deno (robust against formatting changes)
+          # Parse all TOML configs via a single deno invocation
           eval "$(deno eval --ext=ts "
             import { parse } from '@std/toml';
-            const raw = parse(await Deno.readTextFile('$TOML')) as Record<string, unknown>;
-            const mints = (raw.mints as Array<{url: string}> || []).map(m => m.url).join(',');
-            const p = (raw.pricing || {}) as Record<string, number>;
+
+            // --- config/payment.toml ---
+            const payment = parse(await Deno.readTextFile('config/payment.toml')) as Record<string, unknown>;
+            const mints = (payment.mints as Array<{url: string}> || []).map(m => m.url).join(',');
+            const p = (payment.pricing || {}) as Record<string, number>;
+            const a = (payment.amounts || {}) as Record<string, number>;
             console.log('MINT_URLS=' + JSON.stringify(mints));
             console.log('COST=' + (p.cost_per_gb_usd ?? '0.02'));
             console.log('MARGIN=' + (p.profit_margin_pct ?? '0.20'));
             console.log('SLIPPAGE=' + (p.slippage_premium_pct ?? '0.05'));
+            console.log('UPLOAD_AMOUNT=' + (a.upload ?? 0));
+            console.log('MIRROR_AMOUNT=' + (a.mirror ?? 0));
+
+            // --- config/access.toml ---
+            const access = parse(await Deno.readTextFile('config/access.toml')) as Record<string, unknown>;
+            console.log('ACCESS_PUBLIC=' + (access.public ?? true));
+            console.log('ACCESS_PAYMENTS=' + (access.payments ?? false));
+            console.log('ACCESS_ALLOWLIST=' + ((access.allowlist as string[]) || []).join(','));
+            console.log('ACCESS_BLOCKLIST=' + ((access.blocklist as string[]) || []).join(','));
+
+            // --- config/cache.toml ---
+            const cache = parse(await Deno.readTextFile('config/cache.toml')) as Record<string, unknown>;
+            console.log('CACHE_ACCESS_TTL=' + (cache.access_ttl ?? 60));
+            console.log('CACHE_PAYMENT_TTL=' + (cache.payment_ttl ?? 60));
+            console.log('CACHE_BLOCKED_TTL=' + (cache.blocked_ttl ?? 60));
           ")"
 
+          # Payment / pricing env vars
           upsert_var "PRICING_MINT_URLS" "$MINT_URLS"
           upsert_var "PRICING_COST_PER_GB_USD" "${COST:-0.02}"
           upsert_var "PRICING_PROFIT_MARGIN_PCT" "${MARGIN:-0.20}"
           upsert_var "PRICING_SLIPPAGE_PREMIUM_PCT" "${SLIPPAGE:-0.05}"
+          upsert_var "PAYMENT_UPLOAD_AMOUNT" "${UPLOAD_AMOUNT:-0}"
+          upsert_var "PAYMENT_MIRROR_AMOUNT" "${MIRROR_AMOUNT:-0}"
+
+          # Access control env vars
+          upsert_var "ACCESS_PUBLIC" "${ACCESS_PUBLIC:-true}"
+          upsert_var "ACCESS_PAYMENTS" "${ACCESS_PAYMENTS:-false}"
+          upsert_var "ACCESS_ALLOWLIST" "${ACCESS_ALLOWLIST}"
+          upsert_var "ACCESS_BLOCKLIST" "${ACCESS_BLOCKLIST}"
+
+          # Cache TTL env vars
+          upsert_var "CACHE_ACCESS_TTL" "${CACHE_ACCESS_TTL:-60}"
+          upsert_var "CACHE_PAYMENT_TTL" "${CACHE_PAYMENT_TTL:-60}"
+          upsert_var "CACHE_BLOCKED_TTL" "${CACHE_BLOCKED_TTL:-60}"
 
           # Admin refresh endpoint
           upsert_var "ADMIN_KEY" "${{ secrets.ADMIN_KEY }}"

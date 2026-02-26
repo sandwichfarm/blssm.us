@@ -95,6 +95,38 @@ function normalizeAmounts(raw: unknown): PaymentAmounts | null {
 }
 
 /**
+ * Try to load payment config from environment variables.
+ * Returns null if PRICING_MINT_URLS is not set (signal: env not configured).
+ */
+function loadPaymentConfigFromEnv(): PaymentConfig | null {
+  const mintUrlsRaw = process.env["PRICING_MINT_URLS"];
+  if (!mintUrlsRaw) return null;
+
+  // Parse mint URLs — reuse normalizeMints via object wrapper
+  const mintEntries: unknown[] = [];
+  for (const raw of mintUrlsRaw.split(",")) {
+    const url = raw.trim();
+    if (url) mintEntries.push({ url });
+  }
+  const mints = normalizeMints(mintEntries);
+
+  // Parse amounts from env
+  const uploadRaw = process.env["PAYMENT_UPLOAD_AMOUNT"];
+  const mirrorRaw = process.env["PAYMENT_MIRROR_AMOUNT"];
+
+  const upload = uploadRaw ? parseInt(uploadRaw, 10) : 0;
+  const mirror = mirrorRaw ? parseInt(mirrorRaw, 10) : 0;
+
+  // Validate amounts through the same path
+  const amounts = normalizeAmounts({ upload, mirror });
+  if (amounts === null) {
+    return { ...DEFAULT_PAYMENT_CONFIG };
+  }
+
+  return { mints, amounts };
+}
+
+/**
  * Normalize raw JSON into a valid PaymentConfig.
  * Handles null (missing file), non-object, and partial/malformed inputs with safe defaults.
  * Invalid amounts disable the entire config; invalid mint entries are skipped individually.
@@ -123,8 +155,7 @@ export function paymentsEnabled(config: PaymentConfig): boolean {
 }
 
 /**
- * Load and cache payment config from config/payment.json — 60s TTL by default.
- * Missing file → null → normalizePaymentConfig returns payments-disabled default.
+ * Load and cache payment config — env vars → storage fallback → defaults. 60s TTL by default.
  */
 export async function loadPaymentConfig(
   storage: StorageClient,
@@ -134,8 +165,13 @@ export async function loadPaymentConfig(
   if (paymentCache && now < paymentCache.expires) {
     return paymentCache;
   }
-  const raw = await storage.getJson<unknown>("config/payment.json");
-  const config = normalizePaymentConfig(raw);
+
+  // Try env vars first
+  const fromEnv = loadPaymentConfigFromEnv();
+  const config = fromEnv ?? normalizePaymentConfig(
+    await storage.getJson<unknown>("config/payment.json"),
+  );
+
   paymentCache = {
     config,
     expires: now + ttlMs,

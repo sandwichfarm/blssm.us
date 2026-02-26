@@ -1,0 +1,6 @@
+# Cache TTL configuration (values in seconds)
+# All caches default to 60 seconds if not specified
+
+access_ttl = 60
+payment_ttl = 60
+blocked_ttl = 60
