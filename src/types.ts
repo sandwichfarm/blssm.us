@@ -154,6 +154,31 @@ export type ValidationResult =
     };
 
 /**
+ * Public server info response from GET /server-info.
+ * Aggregates access + payment config into a safe public shape.
+ * Never exposes: blocklist, admin keys, storage credentials.
+ */
+export interface ServerInfo {
+  /** true = public mode, false = private (allowlist-only) */
+  public: boolean;
+  /** Whether Cashu payments are enabled for unlisted pubkeys */
+  paymentsEnabled: boolean;
+  /** Hex pubkeys on the allowlist — only included when private */
+  allowlist?: string[];
+  /** Payment details — only included when payments are enabled */
+  payment?: {
+    /** Per-action satoshi amounts */
+    amounts: PaymentAmounts;
+    /** true if any amount > 0 (fixed pricing) */
+    fixedAmounts: boolean;
+    /** Dynamic pricing params — only included when fixedAmounts is false */
+    pricing?: PricingConfig;
+    /** Accepted Cashu mint URLs */
+    mints: string[];
+  };
+}
+
+/**
  * Cache TTL configuration from config/cache.json.
  * All values are in milliseconds internally (JSON values are in seconds).
  * Missing config/cache.json defaults to 60 seconds for all caches.
