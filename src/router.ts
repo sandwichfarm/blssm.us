@@ -9,11 +9,11 @@ import { handleBlobUpload } from "./handlers/blob-upload.ts";
 import { handleBlobDelete } from "./handlers/blob-delete.ts";
 import { handleBlobList } from "./handlers/blob-list.ts";
 import { handleMirror } from "./handlers/mirror.ts";
-import { handleMedia } from "./handlers/media.ts";
 import { handleUploadCheck } from "./handlers/upload-check.ts";
 import { handleReport } from "./handlers/report.ts";
 import { handleSpa } from "./handlers/spa.ts";
 import { handleAdminRefreshPrice } from "./handlers/admin-refresh-price.ts";
+import { handleServerInfo } from "./handlers/server-info.ts";
 
 /** Pre-compiled blob path regexes (avoid re-creation per request) */
 const BLOB_PATH_RE = /^\/[0-9a-f]{64}/;
@@ -48,15 +48,7 @@ export async function route(
     else if (path === "/mirror" && method === "PUT") {
       response = await handleMirror(request, storage, config);
     }
-    // PUT /media — BUD-05: Media upload (store as-is)
-    else if (path === "/media" && method === "PUT") {
-      response = await handleMedia(request, storage, config);
-    }
-    // HEAD /media — BUD-05: Media upload pre-flight
-    else if (path === "/media" && method === "HEAD") {
-      response = await handleUploadCheck(request, storage, config);
-    }
-    // PUT /report — BUD-09: Content reporting
+// PUT /report — BUD-09: Content reporting
     else if (path === "/report" && method === "PUT") {
       response = await handleReport(request, storage, config);
     }
@@ -75,6 +67,10 @@ export async function route(
     // POST /admin/refresh-price — Admin: refresh BTC price
     else if (path === "/admin/refresh-price" && method === "POST") {
       response = await handleAdminRefreshPrice(request);
+    }
+    // GET /server-info — public server configuration
+    else if (path === "/server-info" && method === "GET") {
+      response = await handleServerInfo(storage);
     }
     // SPA fallback for all other GET requests
     else if (method === "GET" && config.spaStoragePassword) {

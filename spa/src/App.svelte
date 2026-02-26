@@ -1,5 +1,41 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+
   const SERVER_URL = window.location.origin;
+
+  interface ServerInfo {
+    public: boolean;
+    paymentsEnabled: boolean;
+    allowlist?: string[];
+    payment?: {
+      amounts: { upload: number; mirror: number };
+      fixedAmounts: boolean;
+      pricing?: {
+        cost_per_gb_usd: number;
+        profit_margin_pct: number;
+        slippage_premium_pct: number;
+      };
+      mints: string[];
+    };
+  }
+
+  let loading = $state(true);
+  let error = $state<string | null>(null);
+  let serverInfo = $state<ServerInfo | null>(null);
+
+  const buds = $derived(
+    [
+      { id: "01", name: "Server Requirements & Blob Retrieval", status: "full" },
+      { id: "02", name: "Blob Upload & Management", status: "full" },
+      { id: "04", name: "Mirroring", status: "full" },
+      { id: "06", name: "Upload Pre-flight", status: "full" },
+      ...(serverInfo?.paymentsEnabled
+        ? [{ id: "07", name: "Payments", status: "partial" as const }]
+        : []),
+      { id: "08", name: "File Metadata (NIP-94)", status: "full" },
+      { id: "09", name: "Content Reporting", status: "full" },
+    ]
+  );
 
   const endpoints = [
     { method: "GET", path: "/<sha256>", desc: "Retrieve a blob" },
@@ -9,20 +45,10 @@
     { method: "GET", path: "/list/<pubkey>", desc: "List blobs by pubkey" },
     { method: "DELETE", path: "/<sha256>", desc: "Delete a blob" },
     { method: "PUT", path: "/mirror", desc: "Mirror from remote URL" },
-    { method: "PUT", path: "/media", desc: "Upload media" },
-    { method: "PUT", path: "/report", desc: "Report content" },
+{ method: "PUT", path: "/report", desc: "Report content" },
   ];
 
-  const buds = [
-    { id: "01", name: "Server Requirements & Blob Retrieval", status: "full" },
-    { id: "02", name: "Blob Upload & Management", status: "full" },
-    { id: "04", name: "Mirroring", status: "full" },
-    { id: "05", name: "Media Optimization", status: "partial" },
-    { id: "06", name: "Upload Pre-flight", status: "full" },
-    { id: "07", name: "Payments", status: "partial" },
-    { id: "08", name: "File Metadata (NIP-94)", status: "full" },
-    { id: "09", name: "Content Reporting", status: "full" },
-  ];
+  const showAllowlist = import.meta.env.VITE_SHOW_ALLOWLIST === "true";
 
   function methodColor(method: string): string {
     switch (method) {
@@ -41,6 +67,22 @@
       default: return "bg-zinc-500/20 text-zinc-400 border-zinc-500/30";
     }
   }
+
+  function truncatePubkey(pk: string): string {
+    return pk.length > 16 ? `${pk.slice(0, 8)}...${pk.slice(-8)}` : pk;
+  }
+
+  onMount(async () => {
+    try {
+      const res = await fetch("/server-info");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      serverInfo = await res.json();
+    } catch (e) {
+      error = e instanceof Error ? e.message : "Failed to load server info";
+    } finally {
+      loading = false;
+    }
+  });
 </script>
 
 <div class="min-h-screen bg-zinc-950 text-zinc-100">
@@ -55,8 +97,16 @@
       </p>
       <div class="mt-6 flex items-center gap-3 text-sm text-zinc-500">
         <span class="inline-flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-          Online
+          {#if loading}
+            <span class="w-2 h-2 rounded-full bg-zinc-500 animate-pulse"></span>
+            Loading
+          {:else if error}
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+            Degraded
+          {:else}
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            Online
+          {/if}
         </span>
         <span class="text-zinc-700">|</span>
         <code class="text-zinc-400">{SERVER_URL}</code>
@@ -65,6 +115,29 @@
   </header>
 
   <main class="max-w-3xl mx-auto px-6 py-12 space-y-12">
+    <!-- Private server notice -->
+    {#if serverInfo && !serverInfo.public}
+      <div class="border border-amber-500/30 bg-amber-500/10 rounded-lg px-4 py-3 text-sm text-amber-300">
+        This is a <strong>private server</strong>. Only allowlisted pubkeys may upload, mirror, or manage blobs.
+      </div>
+    {/if}
+
+    <!-- Allowlist (private + env flag) -->
+    {#if serverInfo && !serverInfo.public && showAllowlist && serverInfo.allowlist?.length}
+      <section>
+        <h2 class="text-xl font-semibold mb-4">Allowlist</h2>
+        <div class="border border-zinc-800 rounded-lg overflow-hidden">
+          <div class="divide-y divide-zinc-800/50">
+            {#each serverInfo.allowlist as pk}
+              <div class="px-4 py-2.5 font-mono text-xs text-zinc-400" title={pk}>
+                {truncatePubkey(pk)}
+              </div>
+            {/each}
+          </div>
+        </div>
+      </section>
+    {/if}
+
     <section>
       <h2 class="text-xl font-semibold mb-4">API Endpoints</h2>
       <div class="border border-zinc-800 rounded-lg overflow-hidden">
@@ -109,6 +182,69 @@
         {/each}
       </div>
     </section>
+
+    <!-- Pricing section -->
+    {#if serverInfo?.payment}
+      <section>
+        <h2 class="text-xl font-semibold mb-4">Pricing</h2>
+        {#if serverInfo.payment.fixedAmounts}
+          <div class="border border-zinc-800 rounded-lg overflow-hidden">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-zinc-800 text-zinc-500 text-left">
+                  <th class="px-4 py-2.5 font-medium">Action</th>
+                  <th class="px-4 py-2.5 font-medium">Amount (sats)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="border-b border-zinc-800/50">
+                  <td class="px-4 py-2.5 text-zinc-300">Upload</td>
+                  <td class="px-4 py-2.5 font-mono text-sm text-zinc-400">
+                    {serverInfo.payment.amounts.upload === 0 ? "Free" : serverInfo.payment.amounts.upload.toLocaleString()}
+                  </td>
+                </tr>
+                <tr class="border-b border-zinc-800/50">
+                  <td class="px-4 py-2.5 text-zinc-300">Mirror</td>
+                  <td class="px-4 py-2.5 font-mono text-sm text-zinc-400">
+                    {serverInfo.payment.amounts.mirror === 0 ? "Free" : serverInfo.payment.amounts.mirror.toLocaleString()}
+                  </td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-2.5 text-zinc-300">Delete</td>
+                  <td class="px-4 py-2.5 font-mono text-sm text-zinc-400">Free</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        {:else if serverInfo.payment.pricing}
+          <div class="border border-zinc-800 rounded-lg p-4 text-sm text-zinc-400 space-y-2">
+            <p>Pricing is calculated dynamically based on file size:</p>
+            <div class="font-mono text-xs bg-zinc-900 rounded px-3 py-2 text-zinc-300">
+              cost = fileSize_GB × ${serverInfo.payment.pricing.cost_per_gb_usd}/GB × (1 + {(serverInfo.payment.pricing.profit_margin_pct * 100).toFixed(0)}% margin) × (1 + {(serverInfo.payment.pricing.slippage_premium_pct * 100).toFixed(0)}% slippage)
+            </div>
+            <p class="text-xs text-zinc-500">Final amount in sats is computed using the current BTC/USD rate. Minimum: 1 sat.</p>
+          </div>
+        {/if}
+      </section>
+
+      <!-- Accepted Mints -->
+      {#if serverInfo.payment.mints.length > 0}
+        <section>
+          <h2 class="text-xl font-semibold mb-4">Accepted Mints</h2>
+          <div class="border border-zinc-800 rounded-lg overflow-hidden">
+            <div class="divide-y divide-zinc-800/50">
+              {#each serverInfo.payment.mints as mint}
+                <div class="px-4 py-2.5">
+                  <a href={mint} target="_blank" rel="noopener" class="font-mono text-xs text-purple-400 hover:text-purple-300 underline underline-offset-2">
+                    {mint}
+                  </a>
+                </div>
+              {/each}
+            </div>
+          </div>
+        </section>
+      {/if}
+    {/if}
 
     <section>
       <h2 class="text-xl font-semibold mb-4">Authentication</h2>
