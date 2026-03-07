@@ -70,12 +70,13 @@ export async function handleBlobUpload(
   // Compute SHA-256
   const hash = sha256Hex(data);
 
-  // Validate hash if auth event specifies `x` tag
+  // Validate hash if auth event specifies `x` tag(s)
+  // Batch auth events (e.g. nsyte) may include multiple x tags — accept if ANY matches
   if (auth.event) {
-    const xTag = auth.event.tags.find((t) => t[0] === "x");
-    if (xTag && xTag[1] !== hash) {
+    const xTags = auth.event.tags.filter((t) => t[0] === "x");
+    if (xTags.length > 0 && !xTags.some((t) => t[1] === hash)) {
       return errorResponse(
-        `Hash mismatch: uploaded blob SHA-256 is ${hash}, auth event specifies ${xTag[1]}`,
+        `Hash mismatch: uploaded blob SHA-256 is ${hash}, not found in auth event x tags`,
         400,
       );
     }
