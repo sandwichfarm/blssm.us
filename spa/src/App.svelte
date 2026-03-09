@@ -771,7 +771,7 @@
 
   <footer class="border-t border-zinc-800 mt-12">
     <div class="max-w-3xl mx-auto px-6 py-6 flex items-center justify-between text-xs text-zinc-600">
-      <span>blssm.us</span>
+      <span>blssm.us — <a href="https://github.com/sandwichfarm/blssm.us" target="_blank" rel="noopener" class="hover:text-zinc-400 underline underline-offset-2">git</a></span>
       <div class="flex items-center gap-4">
         <a href="/report" onclick={(e) => { e.preventDefault(); navigate("/report"); }} class="hover:text-zinc-400">Report Content</a>
         <a href="https://github.com/hzrd149/blossom" target="_blank" rel="noopener" class="hover:text-zinc-400">
