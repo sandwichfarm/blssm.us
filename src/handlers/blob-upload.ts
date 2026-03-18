@@ -48,9 +48,6 @@ export async function handleBlobUpload(
 
   // Read body
   const body = await request.arrayBuffer();
-  if (!body || body.byteLength === 0) {
-    return errorResponse("Empty upload body", 400);
-  }
 
   // Verify actual body size does not exceed Content-Length used for payment pricing
   if (paidForBytes > 0 && body.byteLength > paidForBytes) {

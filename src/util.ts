@@ -1,5 +1,9 @@
 import { sha256 } from "@noble/hashes/sha256";
 
+/** SHA-256 hash of empty input — well-known constant */
+export const EMPTY_SHA256 =
+  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
 /** SHA-256 hash of a Uint8Array, returned as hex string */
 export function sha256Hex(data: Uint8Array): string {
   return bytesToHex(sha256(data));

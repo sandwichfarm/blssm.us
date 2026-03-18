@@ -2,7 +2,7 @@ import type { Config, BlobDescriptor } from "../types.ts";
 import type { StorageClient } from "../storage/client.ts";
 import { getMeta } from "../storage/metadata.ts";
 import { isBlocked } from "../storage/metadata.ts";
-import { errorResponse, jsonResponse, isValidSha256 } from "../util.ts";
+import { errorResponse, jsonResponse, isValidSha256, EMPTY_SHA256 } from "../util.ts";
 
 /**
  * BUD-01: GET/HEAD /<sha256> — Retrieve a blob
@@ -34,6 +34,38 @@ export async function handleBlobGet(
   // Check if blocked
   if (await isBlocked(storage, sha256)) {
     return errorResponse("Blob has been blocked", 403);
+  }
+
+  // Empty files (0 bytes) have a well-known hash — serve directly without fetching
+  if (sha256 === EMPTY_SHA256) {
+    const meta = await getMeta(storage, sha256);
+    const contentType = meta?.type || "application/octet-stream";
+
+    if (request.headers.get("Accept")?.includes("application/json")) {
+      const descriptor: BlobDescriptor = {
+        url: storage.blobUrl(sha256),
+        sha256,
+        size: 0,
+        type: contentType,
+        uploaded: meta?.uploaded || 0,
+      };
+      if (meta?.nip94) descriptor.nip94 = meta.nip94;
+      return jsonResponse(descriptor);
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": contentType,
+      "Content-Length": "0",
+      "X-Content-Type": contentType,
+      "X-SHA-256": sha256,
+      "Cache-Control": "public, max-age=31536000, immutable",
+    };
+
+    if (request.method === "HEAD") {
+      return new Response(null, { status: 200, headers });
+    }
+
+    return new Response(new ArrayBuffer(0), { status: 200, headers });
   }
 
   // Get metadata
