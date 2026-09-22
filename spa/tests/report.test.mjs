@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import { finalizeEvent, getEventHash, getPublicKey, verifyEvent } from 'nostr-tools';
 import { getPow } from 'nostr-tools/nip13';
+import { parse } from 'svelte/compiler';
 
 // Exercise the component's actual submission handler without a browser or a
 // second copy of its logic. Only the worker transport and HTTP are mocked.
@@ -17,6 +18,25 @@ assert.ok(handler, 'report submission handler must exist');
 const handlerJs = ts.transpileModule(handler.getText(source), {
   compilerOptions: { target: ts.ScriptTarget.ES2022 },
 }).outputText;
+
+test('report feedback remains rendered after successful submission clears hash verification', () => {
+  const ast = parse(component, { modern: true });
+  let feedbackBlocks = 0;
+  function visit(node, conditions = []) {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'IfBlock' && node.test?.name === 'reportResult') {
+      feedbackBlocks++;
+      assert.ok(!conditions.includes('hashVerified'), 'feedback cannot be nested under the cleared verification gate');
+    }
+    const next = node.type === 'IfBlock' ? [...conditions, node.test?.name] : conditions;
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) value.forEach(child => visit(child, next));
+      else if (value && typeof value === 'object') visit(value, next);
+    }
+  }
+  visit(ast.fragment);
+  assert.equal(feedbackBlocks, 1, 'the report result must be rendered exactly once');
+});
 
 test('report submission mines kind 1984 before signing and preserves valid proof', async () => {
   const secret = new Uint8Array(32);

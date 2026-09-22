@@ -584,13 +584,6 @@
           </div>
         {/if}
 
-        <!-- Result -->
-        {#if reportResult}
-          <div class="text-sm px-3 py-2 rounded border {reportResult.success ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-red-500/30 bg-red-500/10 text-red-300'}">
-            {reportResult.message}
-          </div>
-        {/if}
-
         <!-- Submit -->
         <button
           onclick={submitReport}
@@ -605,6 +598,13 @@
             Submit Report
           {/if}
         </button>
+        {/if}
+
+        <!-- Keep feedback visible when a successful submission resets verification. -->
+        {#if reportResult}
+          <div role={reportResult.success ? 'status' : 'alert'} class="text-sm px-3 py-2 rounded border {reportResult.success ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-red-500/30 bg-red-500/10 text-red-300'}">
+            {reportResult.message}
+          </div>
         {/if}
       </div>
     </div>
