@@ -15,10 +15,12 @@ import { handleSpa } from "./handlers/spa.ts";
 import { handleAdminRefreshPrice } from "./handlers/admin-refresh-price.ts";
 import { handleAdminSweep } from "./handlers/admin-sweep.ts";
 import { handleServerInfo } from "./handlers/server-info.ts";
+import { handleAdminModeration } from "./handlers/admin-moderation.ts";
 
 /** Pre-compiled blob path regexes (avoid re-creation per request) */
 const BLOB_PATH_RE = /^\/[0-9a-f]{64}/;
 const BLOB_PATH_EXACT_RE = /^\/[0-9a-f]{64}$/;
+const STORAGE_BLOB_RE = /^\/blobs\/([0-9a-f]{2})\/([0-9a-f]{64})$/;
 
 export async function route(
   request: Request,
@@ -37,6 +39,19 @@ export async function route(
   let response: Response;
 
   try {
+    if (path === "/admin/session" || path === "/admin/moderation" || path.startsWith("/admin/moderation/") || path === "/admin/reports" || path.startsWith("/admin/reports/") || path.startsWith("/admin/hashes/")) {
+      return withCors(await handleAdminModeration(request, storage));
+    }
+    // Descriptor URLs must enforce the same moderation controls as /<hash>.
+    if ((method === "GET" || method === "HEAD") && path.startsWith("/blobs/")) {
+      const match = path.match(STORAGE_BLOB_RE);
+      if (!match || match[1] !== match[2].slice(0, 2)) return withCors(errorResponse("Not Found", 404));
+      const canonical = new URL(url);
+      canonical.pathname = `/${match[2]}`;
+      const blobResponse = await handleBlobGet(new Request(canonical, request), storage, config);
+      blobResponse.headers.set("Cache-Control", "no-store");
+      return withCors(blobResponse);
+    }
     // PUT /upload — BUD-02: Upload blob
     if (path === "/upload" && method === "PUT") {
       response = await handleBlobUpload(request, storage, config);
@@ -90,5 +105,8 @@ export async function route(
     response = errorResponse("Internal Server Error", 500);
   }
 
+  if ((method === "GET" || method === "HEAD") && BLOB_PATH_RE.test(path)) {
+    response.headers.set("Cache-Control", "no-store");
+  }
   return withCors(response);
 }

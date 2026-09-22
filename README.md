@@ -52,12 +52,14 @@ Config is cached with a 60-second TTL. Missing config defaults to public mode wi
 
 ## Content Blocking
 
-Block specific blobs by SHA-256 hash via `config/blocked.json`:
+Open `/admin` for Nostr-authenticated moderation, automatic blocking policies,
+report review, PoW sorting, and reversible per-hash controls.
+See [Moderation operations and API](docs/moderation.md).
 
-```json
-{
-  "hashes": ["<sha256>", "..."]
-}
+The legacy blocklist is `config/blocked.toml` in Bunny Storage:
+
+```toml
+hashes = ["<sha256>", "..."]
 ```
 
 Blocked blobs return 403 on retrieval and are rejected during upload.

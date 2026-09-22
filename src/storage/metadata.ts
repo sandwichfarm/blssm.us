@@ -1,14 +1,15 @@
 import type { BlobMeta, BlobIndexEntry, StoredReport, BlockedConfig, NostrEvent } from "../types.ts";
 import type { StorageClient } from "./client.ts";
+import { getModerationState, storeReport } from "./moderation.ts";
 
 /** Read blob metadata, returns null if not found */
 export async function getMeta(storage: StorageClient, sha256: string): Promise<BlobMeta | null> {
-  return storage.getJson<BlobMeta>(storage.metaPath(sha256));
+  return await storage.getJson<BlobMeta>(storage.metaPath(sha256));
 }
 
 /** Write blob metadata */
 export async function putMeta(storage: StorageClient, meta: BlobMeta): Promise<boolean> {
-  return storage.putJson(storage.metaPath(meta.sha256), meta);
+  return await storage.putJson(storage.metaPath(meta.sha256), meta);
 }
 
 /** Add a pubkey as owner of a blob (creates meta if needed) */
@@ -112,10 +113,8 @@ export async function addReport(
   storage: StorageClient,
   sha256: string,
   event: NostrEvent,
-): Promise<void> {
-  const stored = await getReports(storage, sha256);
-  stored.reports.push(event);
-  await storage.putJson(storage.reportPath(sha256), stored);
+): Promise<boolean> {
+  return await storeReport(storage, sha256, event);
 }
 
 /** Get the blocked hashes list */
@@ -133,6 +132,8 @@ export async function isBlocked(
   sha256: string,
   ttlMs: number = BLOCKED_CACHE_TTL_MS,
 ): Promise<boolean> {
+  const moderation = await getModerationState(storage, sha256);
+  if (moderation.blocked !== null) return moderation.blocked;
   const now = Date.now();
   if (blockedCache && now < blockedCache.expires) {
     return blockedCache.hashes.has(sha256);

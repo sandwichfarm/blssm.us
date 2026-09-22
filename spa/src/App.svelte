@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { ISigner } from "applesauce-signers";
+  import Admin from "./Admin.svelte";
+  import type { ISigner, NostrPool } from "applesauce-signers";
   import { ExtensionSigner, PrivateKeySigner, NostrConnectSigner } from "applesauce-signers";
   import { Notemine } from "@notemine/wrapper";
   import { SimplePool } from "nostr-tools/pool";
-  import { Subscription } from "rxjs";
+  import type { NostrEvent } from "nostr-tools";
+  import { Subscription, Observable, merge } from "rxjs";
   import { QR } from "qr-svg";
 
   const SERVER_URL = window.location.origin;
@@ -46,6 +48,7 @@
   }
 
   const isReportPage = $derived(currentPath === "/report");
+  const isAdminPage = $derived(currentPath === "/admin" || currentPath === "/admin/");
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -132,22 +135,20 @@
     }
   }
 
-  function makeNostrPool(): { subscription: any; publish: any } {
+  function makeNostrPool(): NostrPool {
     const pool = new SimplePool();
     return {
-      subscription(relays: string[], filters: Record<string, any>[]) {
-        return {
-          subscribe(observer: any) {
-            const sub = pool.subscribeMany(relays, filters as any, {
-              onevent(event: any) { observer.next?.(event); },
-              oneose() {},
-              onclose() { observer.complete?.(); },
-            });
-            return { unsubscribe: () => sub.close() };
-          },
-        };
+      subscription(relays, filters) {
+        return merge(...filters.map(filter => new Observable<NostrEvent>(observer => {
+          const sub = pool.subscribeMany(relays, filter, {
+            onevent(event) { observer.next(event); },
+            oneose() {},
+            onclose() { observer.complete(); },
+          });
+          return () => sub.close();
+        })));
       },
-      publish(relays: string[], event: any) {
+      publish(relays, event) {
         return Promise.all(pool.publish(relays, event));
       },
     };
@@ -220,6 +221,7 @@
 
       // Mine first, then sign
       const miner = new Notemine({
+        kind: 1984,
         content: reportDescription || "",
         tags: [["x", reportHash, reportCategory]],
         pubkey,
@@ -282,6 +284,7 @@
       if (res.ok) {
         reportResult = { success: true, message: body?.message ?? "Report received" };
         reportHash = "";
+        hashVerified = false;
         reportDescription = "";
       } else {
         reportResult = { success: false, message: body?.message ?? `HTTP ${res.status}` };
@@ -371,6 +374,7 @@
 </script>
 
 <div class="min-h-screen bg-zinc-950 text-zinc-100">
+  {#if !isAdminPage}
   <header class="border-b border-zinc-800">
     <div class="max-w-3xl mx-auto px-6 py-16">
       <h1 class="text-4xl font-bold tracking-tight">blssm.us</h1>
@@ -398,9 +402,12 @@
       </div>
     </div>
   </header>
+  {/if}
 
-  <main class="max-w-3xl mx-auto px-6 py-12 space-y-12">
-  {#if isReportPage}
+  <main class={`${isAdminPage ? 'max-w-7xl' : 'max-w-3xl'} mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-12`}>
+  {#if isAdminPage}
+    <Admin />
+  {:else if isReportPage}
     <!-- Report Content Page -->
     <div class="space-y-6">
       <div class="flex items-center gap-3">
@@ -773,6 +780,7 @@
     <div class="max-w-3xl mx-auto px-6 py-6 flex items-center justify-between text-xs text-zinc-600">
       <span>blssm.us — <a href="https://github.com/sandwichfarm/blssm.us" target="_blank" rel="noopener" class="hover:text-zinc-400 underline underline-offset-2">git</a></span>
       <div class="flex items-center gap-4">
+        <a href="/admin" onclick={(e) => { e.preventDefault(); navigate("/admin"); }} class="hover:text-zinc-400">Administration</a>
         <a href="/report" onclick={(e) => { e.preventDefault(); navigate("/report"); }} class="hover:text-zinc-400">Report Content</a>
         <a href="https://github.com/hzrd149/blossom" target="_blank" rel="noopener" class="hover:text-zinc-400">
           Blossom Protocol

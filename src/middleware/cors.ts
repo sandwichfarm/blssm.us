@@ -1,7 +1,7 @@
 /** CORS headers required by Blossom spec (BUD-01) */
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, HEAD, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, HEAD, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Content-Type, X-SHA-256",
   "Access-Control-Expose-Headers": "X-Content-Type, X-SHA-256, X-Upload-Message",
   "Access-Control-Max-Age": "86400",

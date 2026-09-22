@@ -17,7 +17,7 @@ import { errorResponse, jsonResponse, isValidSha256, EMPTY_SHA256 } from "../uti
 export async function handleBlobGet(
   request: Request,
   storage: StorageClient,
-  config: Config,
+  _config: Config,
 ): Promise<Response> {
   const url = new URL(request.url);
   // Extract sha256 from path, ignoring optional extension
@@ -58,7 +58,7 @@ export async function handleBlobGet(
       "Content-Length": "0",
       "X-Content-Type": contentType,
       "X-SHA-256": sha256,
-      "Cache-Control": "public, max-age=31536000, immutable",
+      "Cache-Control": "no-store",
     };
 
     if (request.method === "HEAD") {
@@ -114,7 +114,7 @@ export async function handleBlobGet(
   headers.set("Content-Type", meta.type || "application/octet-stream");
   headers.set("X-Content-Type", meta.type || "application/octet-stream");
   headers.set("X-SHA-256", sha256);
-  headers.set("Cache-Control", "public, max-age=31536000, immutable");
+  headers.set("Cache-Control", "no-store");
 
   // Forward content-length from storage
   const cl = blobResp.headers.get("Content-Length");
