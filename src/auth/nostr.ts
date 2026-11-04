@@ -2,6 +2,21 @@ import type { NostrEvent, AuthResult } from "../types.ts";
 import { fromBase64 } from "../util.ts";
 import { computeEventId, verifySignature } from "./schnorr.ts";
 
+/**
+ * Reduce a `server` tag or SERVER_URL to a bare lowercase domain.
+ * BUD-11 tags are domains only; full URLs are still accepted because existing
+ * clients send them and they were the only form this server used to match.
+ */
+function serverDomain(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized.includes("://")) return normalized.replace(/\/+$/, "");
+  try {
+    return new URL(normalized).hostname;
+  } catch {
+    return normalized;
+  }
+}
+
 /** Extract and validate a Nostr auth event from the Authorization header.
  *
  * Validates:
@@ -10,7 +25,7 @@ import { computeEventId, verifySignature } from "./schnorr.ts";
  * - expiration tag is in the future
  * - `t` tag matches expected verb (get, upload, delete, list, media, mirror)
  * - `x` tag matches expected hash (if provided)
- * - `server` tag matches expected server URL (if provided)
+ * - at least one `server` tag names this server's domain (if any are present)
  * - Event ID matches SHA-256 of serialized event
  * - Schnorr signature is valid
  */
@@ -78,14 +93,15 @@ export async function validateAuth(
     }
   }
 
-  // Validate `server` tag if provided
+  // BUD-11: when `server` tags are present, this server's domain must appear in at least one
   if (options.serverUrl) {
-    const serverTag = event.tags.find((t) => t[0] === "server");
-    if (serverTag) {
-      // Normalize: strip trailing slash
-      const eventServer = serverTag[1].replace(/\/+$/, "");
-      const expectedServer = options.serverUrl.replace(/\/+$/, "");
-      if (eventServer !== expectedServer) {
+    const serverTags = event.tags.filter((t) => t[0] === "server");
+    if (serverTags.length > 0) {
+      const expected = serverDomain(options.serverUrl);
+      const matches = serverTags.some(
+        (t) => typeof t[1] === "string" && serverDomain(t[1]) === expected,
+      );
+      if (!matches) {
         return { authorized: false, error: `Server URL mismatch` };
       }
     }

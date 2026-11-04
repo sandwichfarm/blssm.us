@@ -2,6 +2,7 @@ import type { Config } from "./types.ts";
 import type { StorageClient } from "./storage/client.ts";
 import { handleOptions, withCors } from "./middleware/cors.ts";
 import { errorResponse } from "./util.ts";
+import { drainBody } from "./http-body.ts";
 
 // Handlers
 import { handleBlobGet } from "./handlers/blob-get.ts";
@@ -103,6 +104,12 @@ export async function route(
   } catch (err) {
     console.error("Handler error:", err);
     response = errorResponse("Internal Server Error", 500);
+  }
+
+  // Handlers reject before reading the body (401, 402, 403, 411...). Answering with a large
+  // upload still unread makes the Bunny edge return a 502 instead of that response.
+  if (request.body && !request.bodyUsed) {
+    await drainBody(request.body, config.maxUploadSize);
   }
 
   if ((method === "GET" || method === "HEAD") && BLOB_PATH_RE.test(path)) {
