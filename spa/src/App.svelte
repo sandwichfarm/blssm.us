@@ -312,6 +312,7 @@
         : []),
       { id: "08", name: "File Metadata (NIP-94)", status: "full" },
       { id: "09", name: "Content Reporting", status: "full", href: "/report" },
+      { id: "11", name: "Nostr Authorization", status: "full" },
     ]
   );
 
@@ -752,7 +753,10 @@
           Authenticated via <strong class="text-zinc-300">Nostr kind 24242</strong> events using schnorr signatures (secp256k1).
         </p>
         <p>
-          Pass auth as <code class="text-xs bg-zinc-800 px-1.5 py-0.5 rounded">Authorization: Nostr &lt;base64-event&gt;</code>
+          Pass auth as <code class="text-xs bg-zinc-800 px-1.5 py-0.5 rounded">Authorization: Nostr &lt;base64url-event&gt;</code>
+        </p>
+        <p>
+          Tokens must have an <code class="text-xs bg-zinc-800 px-1.5 py-0.5 rounded">expiration</code> tag. Upload, mirror and delete tokens must also have an <code class="text-xs bg-zinc-800 px-1.5 py-0.5 rounded">x</code> tag with the blob's hash. Any <code class="text-xs bg-zinc-800 px-1.5 py-0.5 rounded">server</code> tags must include this server's domain.
         </p>
       </div>
     </section>

@@ -12,7 +12,7 @@ import { paymentGate } from "../middleware/payment-gate.ts";
  * Request body is JSON: { url: string }
  * Fetches the remote URL, computes SHA-256, stores blob.
  * Requires Nostr auth with t=upload.
- * If auth event has `x` tag, fetched blob hash must match.
+ * BUD-11: the auth event must have an `x` tag matching the fetched blob hash.
  *
  * SC4 exception: JSON body is read BEFORE access/payment check (needed for remote HEAD pricing).
  */
@@ -24,6 +24,7 @@ export async function handleMirror(
   // Validate auth
   const auth = await validateAuth(request, {
     verb: "upload",
+    requireHash: true,
     serverUrl: config.serverUrl,
   });
   if (!auth.authorized || !auth.pubkey) {
@@ -97,14 +98,13 @@ export async function handleMirror(
   // Compute SHA-256
   const hash = sha256Hex(remoteData);
 
-  // Validate hash if auth event specifies `x` tag(s)
   // Batch auth events (e.g. nsyte) may include multiple x tags — accept if ANY matches
   if (auth.event) {
     const xTags = auth.event.tags.filter((t) => t[0] === "x");
-    if (xTags.length > 0 && !xTags.some((t) => t[1] === hash)) {
+    if (!xTags.some((t) => t[1] === hash)) {
       return errorResponse(
         `Hash mismatch: mirrored blob SHA-256 is ${hash}, not found in auth event x tags`,
-        400,
+        409,
       );
     }
   }

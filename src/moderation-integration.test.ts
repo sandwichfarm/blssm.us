@@ -44,7 +44,7 @@ Deno.test("moderation integration: report blocks both URL forms, uploads and mir
   };
   const auth = () => ({
     Authorization: `Nostr ${
-      btoa(JSON.stringify(sign(24242, [["t", "upload"], ["x", hash]])))
+      btoa(JSON.stringify(sign(24242, [["t", "upload"], ["x", hash], ["expiration", String(Math.floor(Date.now() / 1000) + 3600)]])))
     }`,
   });
   globalThis.fetch = async (input, init) => {

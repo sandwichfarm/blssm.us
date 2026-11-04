@@ -10,7 +10,8 @@ import { paymentGate } from "../middleware/payment-gate.ts";
  * BUD-02: PUT /upload — Upload a blob
  *
  * Requires Nostr auth with t=upload.
- * If auth event has `x` tag, uploaded blob hash must match.
+ * BUD-11: the auth event must have an `x` tag matching the blob hash, which is
+ * checked before the body is read when the client sends X-SHA-256.
  * Returns BlobDescriptor on success.
  */
 export async function handleBlobUpload(
@@ -18,9 +19,16 @@ export async function handleBlobUpload(
   storage: StorageClient,
   config: Config,
 ): Promise<Response> {
+  const declaredHash = request.headers.get("X-SHA-256");
+  if (declaredHash !== null && !isValidSha256(declaredHash)) {
+    return errorResponse("Invalid X-SHA-256 header", 400);
+  }
+
   // Validate auth
   const auth = await validateAuth(request, {
     verb: "upload",
+    sha256: declaredHash ?? undefined,
+    requireHash: true,
     serverUrl: config.serverUrl,
   });
   if (!auth.authorized || !auth.pubkey) {
@@ -67,14 +75,17 @@ export async function handleBlobUpload(
   // Compute SHA-256
   const hash = sha256Hex(data);
 
-  // Validate hash if auth event specifies `x` tag(s)
+  if (declaredHash !== null && declaredHash !== hash) {
+    return errorResponse(`X-SHA-256 does not match the request body, which is ${hash}`, 409);
+  }
+
   // Batch auth events (e.g. nsyte) may include multiple x tags — accept if ANY matches
   if (auth.event) {
     const xTags = auth.event.tags.filter((t) => t[0] === "x");
-    if (xTags.length > 0 && !xTags.some((t) => t[1] === hash)) {
+    if (!xTags.some((t) => t[1] === hash)) {
       return errorResponse(
         `Hash mismatch: uploaded blob SHA-256 is ${hash}, not found in auth event x tags`,
-        400,
+        401,
       );
     }
   }

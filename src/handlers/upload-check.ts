@@ -22,16 +22,26 @@ export async function handleUploadCheck(
   storage: StorageClient,
   config: Config,
 ): Promise<Response> {
+  const sha256 = request.headers.get("X-SHA-256");
+  if (sha256 !== null && !isValidSha256(sha256)) {
+    return new Response(null, {
+      status: 400,
+      headers: { "X-Reason": "Invalid X-SHA-256 header" },
+    });
+  }
+
   // Validate auth if present
   const authHeader = request.headers.get("Authorization");
   if (authHeader) {
     const auth = await validateAuth(request, {
       verb: "upload",
+      sha256: sha256 ?? undefined,
+      requireHash: true,
       serverUrl: config.serverUrl,
     });
     if (!auth.authorized) {
       return new Response(null, {
-        status: 403,
+        status: 401,
         headers: { "X-Reason": auth.error || "Invalid authorization" },
       });
     }
@@ -95,21 +105,11 @@ export async function handleUploadCheck(
     }
   }
 
-  // Check X-SHA-256
-  const sha256 = request.headers.get("X-SHA-256");
-  if (sha256) {
-    if (!isValidSha256(sha256)) {
-      return new Response(null, {
-        status: 400,
-        headers: { "X-Reason": "Invalid X-SHA-256 header" },
-      });
-    }
-    if (await isBlocked(storage, sha256)) {
-      return new Response(null, {
-        status: 403,
-        headers: { "X-Reason": "This content has been blocked" },
-      });
-    }
+  if (sha256 && await isBlocked(storage, sha256)) {
+    return new Response(null, {
+      status: 403,
+      headers: { "X-Reason": "This content has been blocked" },
+    });
   }
 
   return new Response(null, {
