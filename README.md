@@ -83,7 +83,7 @@ deno test src/    # Run tests
 | `BUNNY_STORAGE_HOSTNAME` | Yes | Storage zone hostname |
 | `BUNNY_STORAGE_USERNAME` | Yes | Storage zone name |
 | `BUNNY_CDN_HOSTNAME` | Yes | CDN pull zone hostname |
-| `SERVER_URL` | Yes | Public server URL (for auth validation) |
+| `SERVER_URL` | Yes | Public server URL; its domain is matched against BUD-11 `server` tags |
 | `MAX_UPLOAD_SIZE` | No | Max upload in bytes (default: 100MB) |
 | `BUNNY_SPA_STORAGE_*` | No | Separate storage zone for SPA frontend |
 

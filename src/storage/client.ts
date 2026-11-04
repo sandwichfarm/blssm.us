@@ -12,7 +12,8 @@ export class StorageClient {
     this.baseUrl = `https://${config.storageHostname}/${config.storageUsername}`;
     this.accessKey = config.storagePassword;
     this.zone = config.storageUsername;
-    this.cdnHostname = config.cdnHostname;
+    // Stray whitespace in the env var would otherwise end up inside descriptor URLs
+    this.cdnHostname = config.cdnHostname.trim();
   }
 
   private headers(): Record<string, string> {
