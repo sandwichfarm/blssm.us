@@ -6,21 +6,15 @@ A [Blossom](https://github.com/hzrd149/blossom) server running on [Bunny CDN Edg
 
 | Spec | Description | Status |
 |------|-------------|--------|
-| [BUD-01](https://github.com/hzrd149/blossom/blob/master/buds/01.md) | Blob retrieval (GET/HEAD) | Partial |
-| [BUD-02](https://github.com/hzrd149/blossom/blob/master/buds/02.md) | Upload | Partial |
+| [BUD-01](https://github.com/hzrd149/blossom/blob/master/buds/01.md) | Blob retrieval (GET/HEAD) | ✓ |
+| [BUD-02](https://github.com/hzrd149/blossom/blob/master/buds/02.md) | Upload | ✓ |
 | [BUD-04](https://github.com/hzrd149/blossom/blob/master/buds/04.md) | Mirroring from remote URL | ✓ |
-| [BUD-06](https://github.com/hzrd149/blossom/blob/master/buds/06.md) | Upload preflight check | Partial |
+| [BUD-06](https://github.com/hzrd149/blossom/blob/master/buds/06.md) | Upload preflight check | ✓ |
 | [BUD-07](https://github.com/hzrd149/blossom/blob/master/buds/07.md) | Payments (off on blssm.us) | ✓ |
 | [BUD-08](https://github.com/hzrd149/blossom/blob/master/buds/08.md) | NIP-94 metadata | ✓ |
 | [BUD-09](https://github.com/hzrd149/blossom/blob/master/buds/09.md) | Content reporting (NIP-56) | ✓ |
 | [BUD-11](https://github.com/hzrd149/blossom/blob/master/buds/11.md) | Nostr authorization | ✓ |
 | [BUD-12](https://github.com/hzrd149/blossom/blob/master/buds/12.md) | Listing and deletion | ✓ |
-
-### Known gaps
-
-- **BUD-01:** On blssm.us, `Range` requests get the whole blob, because Bunny doesn't forward visitors' `Range` headers to the origin. Text blobs above a small size are also served without `Content-Length`, on both `GET` and `HEAD`.
-- **BUD-02:** On blssm.us, Bunny's security layer can answer `403` before the server sees an upload, if the body looks like an attack (for example, it contains `<script>`).
-- **BUD-06:** Not yet confirmed working on blssm.us. Bunny sends `HEAD` to the server as `GET`, so `GET /upload` now answers as the preflight too.
 
 ## API Endpoints
 
@@ -97,6 +91,10 @@ deno test src/    # Run tests
 | `BUNNY_SPA_STORAGE_*` | No | Separate storage zone for SPA frontend |
 
 ## Deployment
+
+The Bunny pull zone needs **Cache Slicing** on (`EnableCacheSlice`, labelled Optimize for Video Delivery). Without it, `Range` requests get the whole blob, and text blobs can lose `Content-Length`.
+
+Its Shield WAF needs to be **log-only** (`wafExecutionMode: 0`). In blocking mode it answers `403` to ordinary HTML and JavaScript uploads before the server sees them.
 
 Deploys automatically to Bunny CDN EdgeScript on push to `master` via GitHub Actions. The SPA frontend deploys separately on changes to `spa/`.
 
