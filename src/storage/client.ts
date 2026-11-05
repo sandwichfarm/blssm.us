@@ -56,13 +56,13 @@ export class StorageClient {
     return resp;
   }
 
-  /** Delete a file from storage */
+  /** Delete a file from storage. A file that's already gone counts as deleted. */
   async delete(path: string): Promise<boolean> {
     const resp = await fetch(`${this.baseUrl}/${path}`, {
       method: "DELETE",
       headers: this.headers(),
     });
-    return resp.status === 200;
+    return resp.status === 200 || resp.status === 404;
   }
 
   /** Read JSON from storage */

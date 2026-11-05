@@ -114,7 +114,9 @@ export async function handleBlobUpload(
   }
 
   // Store blob
-  await storage.put(storage.blobPath(hash), data, contentType);
+  if (!await storage.put(storage.blobPath(hash), data, contentType)) {
+    return errorResponse("Storage unavailable; please retry", 503);
+  }
 
   // Update metadata and index in parallel (independent storage paths)
   const now = Math.floor(Date.now() / 1000);
