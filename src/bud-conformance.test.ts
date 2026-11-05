@@ -336,6 +336,24 @@ withEmptyStorage("BUD-06: X-Content-Type may carry parameters", async () => {
   eq(response.status, 200);
 });
 
+// Bunny's CDN sends visitors' HEAD requests to the origin as GET
+const edgePreflight = (headers: Record<string, string>) => send("/upload", { headers });
+
+withEmptyStorage("BUD-06: GET /upload answers as the preflight, without the SPA", async () => {
+  eq((await edgePreflight({})).status, 401);
+  eq((await edgePreflight({ "X-SHA-256": "nope" })).status, 400);
+  const accepted = await edgePreflight({ Authorization: auth(), "X-SHA-256": HASH });
+  eq(accepted.status, 200);
+  eq(accepted.headers.get("Content-Type"), null);
+  eq(accepted.headers.get("X-Max-Upload-Size"), String(config.maxUploadSize));
+  const tooLarge = await edgePreflight({
+    Authorization: auth(),
+    "X-SHA-256": HASH,
+    "X-Content-Length": String(config.maxUploadSize + 1),
+  });
+  eq(tooLarge.status, 413);
+});
+
 // --- BUD-09: reports naming several blobs
 
 const report = (tags: string[][]) =>

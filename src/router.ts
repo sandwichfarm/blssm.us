@@ -57,8 +57,9 @@ export async function route(
     if (path === "/upload" && method === "PUT") {
       response = await handleBlobUpload(request, storage, config);
     }
-    // HEAD /upload — BUD-06: Upload pre-flight check
-    else if (path === "/upload" && method === "HEAD") {
+    // HEAD /upload — BUD-06: Upload pre-flight check. Bunny's CDN sends visitors' HEAD requests
+    // to the origin as GET, so the script has to answer GET here too.
+    else if (path === "/upload" && (method === "HEAD" || method === "GET")) {
       response = await handleUploadCheck(request, storage, config);
     }
     // PUT /mirror — BUD-04: Mirror a blob from URL

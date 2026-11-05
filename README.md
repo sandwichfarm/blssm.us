@@ -7,9 +7,9 @@ A [Blossom](https://github.com/hzrd149/blossom) server running on [Bunny CDN Edg
 | Spec | Description | Status |
 |------|-------------|--------|
 | [BUD-01](https://github.com/hzrd149/blossom/blob/master/buds/01.md) | Blob retrieval (GET/HEAD) | Partial |
-| [BUD-02](https://github.com/hzrd149/blossom/blob/master/buds/02.md) | Upload | ✓ |
+| [BUD-02](https://github.com/hzrd149/blossom/blob/master/buds/02.md) | Upload | Partial |
 | [BUD-04](https://github.com/hzrd149/blossom/blob/master/buds/04.md) | Mirroring from remote URL | ✓ |
-| [BUD-06](https://github.com/hzrd149/blossom/blob/master/buds/06.md) | Upload preflight check | ✓ |
+| [BUD-06](https://github.com/hzrd149/blossom/blob/master/buds/06.md) | Upload preflight check | Partial |
 | [BUD-07](https://github.com/hzrd149/blossom/blob/master/buds/07.md) | Payments (off on blssm.us) | ✓ |
 | [BUD-08](https://github.com/hzrd149/blossom/blob/master/buds/08.md) | NIP-94 metadata | ✓ |
 | [BUD-09](https://github.com/hzrd149/blossom/blob/master/buds/09.md) | Content reporting (NIP-56) | ✓ |
@@ -18,7 +18,9 @@ A [Blossom](https://github.com/hzrd149/blossom) server running on [Bunny CDN Edg
 
 ### Known gaps
 
-- **BUD-01:** On blssm.us, responses have no `Content-Length`, including `HEAD`. The handler sets it, so it appears to be dropped at Bunny's edge. `Range` requests get the whole blob, because Bunny doesn't forward visitors' `Range` headers to the origin.
+- **BUD-01:** On blssm.us, `Range` requests get the whole blob, because Bunny doesn't forward visitors' `Range` headers to the origin. Text blobs above a small size are also served without `Content-Length`, on both `GET` and `HEAD`.
+- **BUD-02:** On blssm.us, Bunny's security layer can answer `403` before the server sees an upload, if the body looks like an attack (for example, it contains `<script>`).
+- **BUD-06:** Not yet confirmed working on blssm.us. Bunny sends `HEAD` to the server as `GET`, so `GET /upload` now answers as the preflight too.
 
 ## API Endpoints
 
