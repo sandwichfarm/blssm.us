@@ -162,10 +162,10 @@ Deno.test("route: a BUD-11 scoped upload succeeds and its descriptor URL has no 
       config,
     )
   );
-  eq(response.status, 200);
+  eq(response.status, 201);
   const descriptor = await response.json();
   eq(descriptor.sha256, hash);
-  eq(descriptor.url, `https://blssm.test/blobs/${hash.slice(0, 2)}/${hash}`);
+  eq(descriptor.url, `https://blssm.test/${hash}.txt`);
 });
 
 Deno.test("PUT /upload: requires an x tag", async () => {
@@ -175,7 +175,7 @@ Deno.test("PUT /upload: requires an x tag", async () => {
 });
 
 Deno.test("PUT /upload: accepts a matching X-SHA-256 and x tag", async () => {
-  eq((await upload([["x", BLOB_HASH]], { "X-SHA-256": BLOB_HASH })).status, 200);
+  eq((await upload([["x", BLOB_HASH]], { "X-SHA-256": BLOB_HASH })).status, 201);
 });
 
 Deno.test("PUT /upload: rejects X-SHA-256 outside the token's x tags", async () => {
@@ -199,7 +199,7 @@ Deno.test("PUT /mirror: requires an x tag", async () => {
 });
 
 Deno.test("PUT /mirror: accepts a matching x tag", async () => {
-  eq((await mirror([["x", BLOB_HASH]])).status, 200);
+  eq((await mirror([["x", BLOB_HASH]])).status, 201);
 });
 
 Deno.test("PUT /mirror: returns 409 when the blob does not match the x tag", async () => {

@@ -1,5 +1,6 @@
 import type { Config } from "../types.ts";
 import { parse as parseToml } from "@std/toml";
+import { extensionForType } from "../util.ts";
 
 /** Bunny Storage REST API client */
 export class StorageClient {
@@ -37,10 +38,10 @@ export class StorageClient {
   }
 
   /** Download/GET a file from storage. Returns null if not found. */
-  async get(path: string): Promise<Response | null> {
+  async get(path: string, extraHeaders: Record<string, string> = {}): Promise<Response | null> {
     const resp = await fetch(`${this.baseUrl}/${path}`, {
       method: "GET",
-      headers: this.headers(),
+      headers: { ...this.headers(), ...extraHeaders },
     });
     if (resp.status === 404) return null;
     return resp;
@@ -104,10 +105,9 @@ export class StorageClient {
     return this.put(path, body, "application/json");
   }
 
-  /** Get the public CDN URL for a blob */
-  blobUrl(sha256: string): string {
-    const pre = sha256.substring(0, 2);
-    return `https://${this.cdnHostname}/blobs/${pre}/${sha256}`;
+  /** Get the public URL for a blob: BUD-01 `GET /<sha256>` with the file extension BUD-02 requires */
+  blobUrl(sha256: string, type: string): string {
+    return `https://${this.cdnHostname}/${sha256}.${extensionForType(type)}`;
   }
 
   /** Get the storage path for a blob */

@@ -1,7 +1,8 @@
 import type { Config, BlobDescriptor } from "../types.ts";
 import type { StorageClient } from "../storage/client.ts";
 import { validateAuth } from "../auth/nostr.ts";
-import { addOwner, addToIndex, isBlocked } from "../storage/metadata.ts";
+import { addOwner, addToIndex, getMeta, isBlocked } from "../storage/metadata.ts";
+import { buildNip94, clientNip94Tags } from "../nip94.ts";
 import { sha256Hex, errorResponse, jsonResponse, isValidSha256 } from "../util.ts";
 import { checkAccess } from "../middleware/access.ts";
 import { paymentGate } from "../middleware/payment-gate.ts";
@@ -41,6 +42,9 @@ export async function handleMirror(
 
   if (!body.url || typeof body.url !== "string") {
     return errorResponse("Missing 'url' field", 400);
+  }
+  if (!URL.canParse(body.url) || !/^https?:$/.test(new URL(body.url).protocol)) {
+    return errorResponse("Invalid 'url' field", 400);
   }
 
   // Access control — GATE-02: runs after auth + JSON parse (SC4 approved exception)
@@ -118,6 +122,9 @@ export async function handleMirror(
   const contentType =
     remoteResp.headers.get("Content-Type") || "application/octet-stream";
 
+  const clientTags = auth.event ? clientNip94Tags(auth.event.tags) : undefined;
+  const alreadyStored = await getMeta(storage, hash) !== null;
+
   // Store blob
   if (!await storage.put(storage.blobPath(hash), remoteData, contentType)) {
     return errorResponse("Storage unavailable; please retry", 503);
@@ -126,7 +133,7 @@ export async function handleMirror(
   // Update metadata and index in parallel (independent storage paths)
   const now = Math.floor(Date.now() / 1000);
   const [meta] = await Promise.all([
-    addOwner(storage, hash, auth.pubkey, remoteData.byteLength, contentType),
+    addOwner(storage, hash, auth.pubkey, remoteData.byteLength, contentType, clientTags),
     addToIndex(storage, auth.pubkey, {
       sha256: hash,
       size: remoteData.byteLength,
@@ -135,14 +142,15 @@ export async function handleMirror(
     }),
   ]);
 
-  // Return blob descriptor
+  const url = storage.blobUrl(hash, meta.type);
   const descriptor: BlobDescriptor = {
-    url: storage.blobUrl(hash),
+    url,
     sha256: hash,
-    size: remoteData.byteLength,
-    type: contentType,
+    size: meta.size,
+    type: meta.type,
     uploaded: meta.uploaded,
+    nip94: buildNip94(url, meta.type, hash, meta.size, meta.nip94),
   };
 
-  return jsonResponse(descriptor);
+  return jsonResponse(descriptor, alreadyStored ? 200 : 201);
 }

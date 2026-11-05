@@ -119,8 +119,9 @@ export async function addReport(
   storage: StorageClient,
   sha256: string,
   event: NostrEvent,
+  id?: string,
 ): Promise<boolean> {
-  return await storeReport(storage, sha256, event);
+  return await storeReport(storage, sha256, event, id);
 }
 
 /** Get the blocked hashes list */

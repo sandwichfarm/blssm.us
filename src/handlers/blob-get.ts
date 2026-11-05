@@ -1,18 +1,17 @@
-import type { Config, BlobDescriptor } from "../types.ts";
+import type { Config } from "../types.ts";
 import type { StorageClient } from "../storage/client.ts";
 import { getMeta } from "../storage/metadata.ts";
 import { isBlocked } from "../storage/metadata.ts";
-import { errorResponse, jsonResponse, isValidSha256, EMPTY_SHA256 } from "../util.ts";
+import { errorResponse, EMPTY_SHA256 } from "../util.ts";
 
 /**
  * BUD-01: GET/HEAD /<sha256> — Retrieve a blob
  *
  * Supports:
  * - Content-Type from metadata
- * - Range requests (proxied to Bunny Storage)
+ * - Range requests (forwarded to Bunny Storage)
  * - Optional file extension in path (e.g. /<sha256>.png)
  * - HEAD returns headers only
- * - Returns blob descriptor as JSON if Accept: application/json
  */
 export async function handleBlobGet(
   request: Request,
@@ -20,16 +19,12 @@ export async function handleBlobGet(
   _config: Config,
 ): Promise<Response> {
   const url = new URL(request.url);
-  // Extract sha256 from path, ignoring optional extension
-  const pathMatch = url.pathname.match(/^\/([0-9a-f]{64})/);
+  // The hash may only be followed by a file extension, which doesn't affect the response
+  const pathMatch = url.pathname.match(/^\/([0-9a-f]{64})(\.[A-Za-z0-9]+)?$/);
   if (!pathMatch) {
     return errorResponse("Invalid hash", 400);
   }
   const sha256 = pathMatch[1];
-
-  if (!isValidSha256(sha256)) {
-    return errorResponse("Invalid SHA-256 hash", 400);
-  }
 
   // Check if blocked
   if (await isBlocked(storage, sha256)) {
@@ -40,18 +35,6 @@ export async function handleBlobGet(
   if (sha256 === EMPTY_SHA256) {
     const meta = await getMeta(storage, sha256);
     const contentType = meta?.type || "application/octet-stream";
-
-    if (request.headers.get("Accept")?.includes("application/json")) {
-      const descriptor: BlobDescriptor = {
-        url: storage.blobUrl(sha256),
-        sha256,
-        size: 0,
-        type: contentType,
-        uploaded: meta?.uploaded || 0,
-      };
-      if (meta?.nip94) descriptor.nip94 = meta.nip94;
-      return jsonResponse(descriptor);
-    }
 
     const headers: Record<string, string> = {
       "Content-Type": contentType,
@@ -74,22 +57,6 @@ export async function handleBlobGet(
     return errorResponse("Blob not found", 404);
   }
 
-  // If client wants JSON descriptor
-  const accept = request.headers.get("Accept") || "";
-  if (accept.includes("application/json")) {
-    const descriptor: BlobDescriptor = {
-      url: storage.blobUrl(sha256),
-      sha256,
-      size: meta.size,
-      type: meta.type,
-      uploaded: meta.uploaded,
-    };
-    if (meta.nip94) {
-      descriptor.nip94 = meta.nip94;
-    }
-    return jsonResponse(descriptor);
-  }
-
   // For HEAD requests, return headers without body
   if (request.method === "HEAD") {
     return new Response(null, {
@@ -103,36 +70,37 @@ export async function handleBlobGet(
     });
   }
 
-  // GET — proxy from Bunny Storage
-  const blobResp = await storage.get(storage.blobPath(sha256));
+  // GET — proxy from Bunny Storage, which handles any Range itself
+  const range = request.headers.get("Range");
+  const blobResp = await storage.get(
+    storage.blobPath(sha256),
+    range ? { Range: range } : undefined,
+  );
   if (!blobResp) {
     return errorResponse("Blob data not found", 404);
   }
+  if (blobResp.status === 416) {
+    await blobResp.body?.cancel();
+    return new Response(null, {
+      status: 416,
+      headers: { "Content-Range": blobResp.headers.get("Content-Range") ?? `bytes */${meta.size}` },
+    });
+  }
+  if (!blobResp.ok) {
+    await blobResp.body?.cancel();
+    return errorResponse("Blob storage unavailable; please retry", 503);
+  }
 
-  // Build response headers
   const headers = new Headers();
   headers.set("Content-Type", meta.type || "application/octet-stream");
   headers.set("X-Content-Type", meta.type || "application/octet-stream");
   headers.set("X-SHA-256", sha256);
   headers.set("Cache-Control", "no-store");
-
-  // Forward content-length from storage
-  const cl = blobResp.headers.get("Content-Length");
-  if (cl) headers.set("Content-Length", cl);
-
-  // Support range requests
-  const rangeHeader = request.headers.get("Range");
-  if (rangeHeader) {
-    const contentRange = blobResp.headers.get("Content-Range");
-    if (contentRange) headers.set("Content-Range", contentRange);
-    return new Response(blobResp.body, {
-      status: 206,
-      headers,
-    });
+  for (const name of ["Content-Length", "Content-Range", "Accept-Ranges"]) {
+    const value = blobResp.headers.get(name);
+    if (value) headers.set(name, value);
   }
 
-  return new Response(blobResp.body, {
-    status: 200,
-    headers,
-  });
+  // 206 for a satisfied Range; 200 if storage chose to send the whole blob
+  return new Response(blobResp.body, { status: blobResp.status, headers });
 }

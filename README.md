@@ -18,7 +18,7 @@ A [Blossom](https://github.com/hzrd149/blossom) server running on [Bunny CDN Edg
 
 ### Known gaps
 
-- **BUD-01:** On blssm.us, responses have no `Content-Length`, including `HEAD`, and `Range` requests get the whole blob. The handler sets `Content-Length` and forwards `Range`, but the headers don't get through Bunny's edge.
+- **BUD-01:** On blssm.us, responses have no `Content-Length`, including `HEAD`, and `Range` requests get the whole blob. The handler sets `Content-Length` and forwards `Range`, so the headers appear to be dropped at Bunny's edge.
 
 ## API Endpoints
 

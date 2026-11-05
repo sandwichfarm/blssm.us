@@ -7,6 +7,7 @@ import {
   applyReportPolicy,
   type ModerationReport,
   readJson,
+  reportIdFor,
 } from "../storage/moderation.ts";
 import { readLimitedBody } from "../http-body.ts";
 
@@ -14,8 +15,8 @@ import { readLimitedBody } from "../http-body.ts";
  * BUD-09: PUT /report — Report content
  *
  * Accepts a NIP-56 (kind 1984) moderation event.
- * The event must reference a blob hash via an `x` tag.
- * Validates the event signature and stores the report.
+ * The event must reference at least one blob hash via `x` tags.
+ * Validates the event signature and stores one report per hash.
  */
 export async function handleReport(
   request: Request,
@@ -66,14 +67,12 @@ export async function handleReport(
     return errorResponse("Expected kind 1984 (moderation/report) event", 400);
   }
 
-  // Find the x tag referencing a blob hash
-  const xTag = event.tags.find((t) => t[0] === "x");
-  if (!xTag || !xTag[1]) {
+  // Find the x tags referencing blob hashes
+  const hashes = [...new Set(event.tags.filter((t) => t[0] === "x").map((t) => t[1]))];
+  if (hashes.length === 0 || hashes.some((hash) => !hash)) {
     return errorResponse("Missing 'x' tag with blob hash", 400);
   }
-  const sha256 = xTag[1];
-
-  if (!isValidSha256(sha256)) {
+  if (!hashes.every(isValidSha256)) {
     return errorResponse("Invalid SHA-256 hash in 'x' tag", 400);
   }
 
@@ -89,37 +88,45 @@ export async function handleReport(
     return errorResponse("Invalid signature", 400);
   }
 
-  // Store report (even if blob doesn't exist — report can pre-date upload)
+  // Store reports (even if a blob doesn't exist — a report can pre-date its upload)
+  const reportIds = hashes.map((hash, index) => reportIdFor(event, hash, index));
   try {
-    if (!await addReport(storage, sha256, event)) {
+    const stored = await Promise.all(
+      hashes.map((hash, index) => addReport(storage, hash, event, reportIds[index])),
+    );
+    if (!stored.every(Boolean)) {
       return errorResponse("Report storage unavailable; please retry", 503);
     }
   } catch {
     return errorResponse("Report storage unavailable; please retry", 503);
   }
 
-  try {
-    const report = await readJson<ModerationReport>(
-      storage,
-      `moderation/reports/${event.id}.json`,
-    );
-    if (report && await applyReportPolicy(storage, report) === "blocked") {
-      if (
-        !await storage.putJson(`moderation/processing/${event.id}.json`, {
-          failed: false,
-        })
-      ) throw new Error("Processing result unavailable");
-      return jsonResponse({
-        message: "Report received; content blocked by moderation policy",
-        reportId: event.id,
-        status: "blocked",
-      });
+  let blocked = false;
+  let automationError = false;
+  for (const reportId of reportIds) {
+    try {
+      const report = await readJson<ModerationReport>(
+        storage,
+        `moderation/reports/${reportId}.json`,
+      );
+      if (report && await applyReportPolicy(storage, report) === "blocked") {
+        if (
+          !await storage.putJson(`moderation/processing/${reportId}.json`, {
+            failed: false,
+          })
+        ) throw new Error("Processing result unavailable");
+        blocked = true;
+      }
+    } catch {
+      // Receipt is durable. The admin queue can retry automation without losing the report.
+      automationError = true;
+      await storage.putJson(`moderation/processing/${reportId}.json`, {
+        failed: true,
+      }).catch(() => false);
     }
-  } catch {
-    // Receipt is durable. The admin queue can retry automation without losing the report.
-    await storage.putJson(`moderation/processing/${event.id}.json`, {
-      failed: true,
-    }).catch(() => false);
+  }
+
+  if (automationError) {
     return jsonResponse({
       message:
         "Report saved for review; automatic processing will need a retry",
@@ -127,6 +134,13 @@ export async function handleReport(
       status: "pending",
       automationError: true,
     }, 202);
+  }
+  if (blocked) {
+    return jsonResponse({
+      message: "Report received; content blocked by moderation policy",
+      reportId: event.id,
+      status: "blocked",
+    });
   }
   return jsonResponse({
     message: "Report received for review",

@@ -380,3 +380,28 @@ Deno.test("paymentGate: X-Lightning takes precedence over X-Cashu", async () => 
   assertEquals(lightningCalled, true, "Lightning validator should have been called");
   assertEquals(cashuCalled, false, "Cashu validator should NOT have been called");
 });
+
+// ---------------------------------------------------------------------------
+// Test: LN-only mode with a failed invoice has no way to pay → 503, not an empty 402
+// ---------------------------------------------------------------------------
+
+Deno.test("paymentGate: returns 503 when LN-only and the invoice can't be created", async () => {
+  _resetPaymentCacheForTesting();
+  _resetPriceCacheForTesting();
+
+  const storage = makeStorage({
+    mints: [],
+    amounts: { upload: 0, mirror: 0 },
+  });
+
+  const result = await paymentGate(makeRequest(), storage, 1024, {
+    pricingTomlPath: "/tmp/nonexistent-pricing.toml",
+    getBtcPrice: mockGetBtcPrice(50_000),
+    loadLnConfig: () => ({ endpoint: "https://lnd.test", macaroon: "abc" }),
+    createLnInvoice: async () => null,
+  });
+
+  assertEquals(result!.status, 503);
+  assertEquals(result!.headers.get("X-Reason"), "payment_unavailable");
+  assertEquals(result!.headers.get("Retry-After"), "30");
+});

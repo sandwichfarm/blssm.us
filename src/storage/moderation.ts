@@ -3,6 +3,7 @@ import type { StorageClient } from "./client.ts";
 import { parse as parseToml } from "@std/toml";
 import process from "node:process";
 import { readLimitedBody } from "../http-body.ts";
+import { sha256Hex } from "../util.ts";
 
 export type ModerationMode = "manual" | "trusted" | "all";
 export interface ModerationPolicy {
@@ -127,19 +128,34 @@ export function getReview(
   );
 }
 
+/**
+ * One event can report several blobs and each gets its own report. The first keeps the
+ * event ID; the others get an ID derived from it, so retries still deduplicate.
+ */
+export function reportIdFor(
+  event: NostrEvent,
+  sha256: string,
+  index: number,
+): string {
+  return index === 0
+    ? event.id
+    : sha256Hex(new TextEncoder().encode(`${event.id}:${sha256}`));
+}
+
 export async function storeReport(
   storage: StorageClient,
   sha256: string,
   event: NostrEvent,
+  id: string = event.id,
 ): Promise<boolean> {
   const receivedAt = Date.now();
-  const path = `moderation/reports/${event.id}.json`;
+  const path = `moderation/reports/${id}.json`;
   // Preserve receipt time on retries; replay cannot become a new automatic action.
   if (await readJson<ModerationReport>(storage, path)) return true;
   return storage.putJson(
     path,
     {
-      id: event.id,
+      id,
       sha256,
       event,
       receivedAt,
@@ -408,7 +424,9 @@ export async function reportRows(
     return {
       ...report,
       pow: reportPow(report.event.id),
-      category: report.event.tags.find((tag) => tag[0] === "x")?.[2] ?? "other",
+      category: report.event.tags.find((tag) =>
+        tag[0] === "x" && tag[1] === report.sha256
+      )?.[2] ?? "other",
       ...state,
       blocked,
       status,
