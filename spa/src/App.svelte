@@ -304,7 +304,7 @@
   const buds = $derived(
     [
       { id: "01", name: "Server Requirements & Blob Retrieval", status: "full" },
-      { id: "02", name: "Blob Upload", status: "partial" },
+      { id: "02", name: "Blob Upload", status: "full" },
       { id: "04", name: "Mirroring", status: "full" },
       { id: "06", name: "Upload Pre-flight", status: "full" },
       ...(serverInfo?.paymentsEnabled

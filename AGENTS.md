@@ -84,5 +84,5 @@ When a test upload has been approved, use a short, generic plain-text string typ
 ## Repo notes
 
 - `.planning/` is a historical record that doesn't track current work, and parts of it are out of date. Trust the code over it, and leave it alone unless asked.
-- **Bunny changes requests before the script sees them.** [Visitors' `HEAD` arrives as `GET` and `Range` isn't forwarded](https://bunny.net/docs/cdn/request-headers-to-origin), and its security layer can answer `403` first. `Range` only works because Cache Slicing is on for the zone. Tests that call `route()` directly can't catch any of this, so check the response really came from the handler: a `text/html` response from an API route means it didn't.
+- **Bunny changes requests before the script sees them.** [Visitors' `HEAD` arrives as `GET` and `Range` isn't forwarded](https://bunny.net/docs/cdn/request-headers-to-origin), and its security layer can answer `403` first if the WAF is put back in blocking mode. `Range` and uploads of HTML and JavaScript depend on the zone settings listed under Deployment in the README. Tests that call `route()` directly can't catch any of this, so check the response really came from the handler: a `text/html` response from an API route means it didn't.
 - Backend tests sit next to the code as `*.test.ts`. SPA tests are in `spa/tests/`.
