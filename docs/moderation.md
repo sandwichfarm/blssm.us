@@ -10,11 +10,13 @@ Open `/admin` and sign in with the Nostr browser extension or a remote signer (b
 
 Saving a policy affects new submissions. **Apply saved policy to pending** processes existing reports and reconciles failed cache purges. It runs in small resumable batches.
 
-Blocking denies retrieval, upload, and mirroring. It retains bytes and metadata so an operator can reverse the decision. Both `/<hash>` and `/blobs/<prefix>/<hash>` enforce the same decision; changes purge CDN copies. New retrieval responses use `no-store`. Previously saved/downloaded browser copies cannot be recalled. Unblocking cannot restore a blob that was physically deleted before this feature.
+Blocking denies retrieval, upload, and mirroring. It retains bytes and metadata so an operator can reverse the decision. `/<hash>` (with or without a file extension) and the older `/blobs/<prefix>/<hash>` form enforce the same decision; changes purge CDN copies. New retrieval responses use `no-store`. Previously saved/downloaded browser copies cannot be recalled. Unblocking cannot restore a blob that was physically deleted before this feature.
 
 **Allow hash** removes the effective block, including a legacy `config/blocked.toml` entry, without rewriting that file. Unblocking from a report also protects the hash against automation by default. Protection can be toggled independently; while protected, manual access state wins regardless of new reports. Re-enabling automation does not replay old reports over the operator's decision; later reports may act. Direct hash controls also work for hashes with no reports.
 
 Dismiss/reopen changes the report review state, not blob access. All reports concerning a hash show its current access state. A dismissed report remains dismissed even if another report blocks the hash. A processing-failure indicator means the receipt was saved but an automatic operation or cache purge needs retrying.
+
+A report event that names several hashes appears as one report per hash, and each is handled separately.
 
 The table shows received time, category, reporter, hash, review status, and **actual PoW bits** (leading zero bits in the verified event ID). The nonce's requested difficulty is not trusted. Signed reports need not meet a minimum PoW; low-PoW reports remain visible for spam review. The browser loads cursor batches, deduplicates legacy/current receipts, then computes global statistics, filters, and ordering; it shows progress until the scan finishes. Statistics refer to the loaded report collection (including protected hashes represented by reports), not every stored blob.
 

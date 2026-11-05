@@ -37,7 +37,7 @@ function chunkedUpload(chunks: number, headers: HeadersInit = {}) {
   return { request, seen };
 }
 
-function authHeader(tags: string[][]): string {
+function authHeader(tags: string[][], verb = "upload"): string {
   const secret = "1".padStart(64, "0");
   const now = Math.floor(Date.now() / 1000);
   const event: NostrEvent = {
@@ -46,13 +46,49 @@ function authHeader(tags: string[][]): string {
     pubkey: bytesToHex(schnorr.getPublicKey(secret)),
     kind: 24242,
     created_at: now,
-    tags: [["t", "upload"], ["expiration", String(now + 3600)], ...tags],
+    tags: [["t", verb], ["expiration", String(now + 3600)], ...tags],
     content: "test",
   };
   event.id = computeEventId(event);
   event.sig = bytesToHex(schnorr.sign(event.id, secret));
   return `Nostr ${btoa(JSON.stringify(event))}`;
 }
+
+const BLOB = new TextEncoder().encode("bud-11 fixture");
+const BLOB_HASH = sha256Hex(BLOB);
+const OTHER_HASH = "a".repeat(64);
+
+const send = (path: string, init: RequestInit) =>
+  withFakeStorage(() => route(new Request(config.serverUrl + path, init), storage, config));
+
+const upload = (tags: string[][], headers: Record<string, string> = {}) =>
+  send("/upload", {
+    method: "PUT",
+    headers: { Authorization: authHeader(tags), ...headers },
+    body: BLOB,
+  });
+
+const mirror = (tags: string[][]) =>
+  send("/mirror", {
+    method: "PUT",
+    headers: { Authorization: authHeader(tags) },
+    body: JSON.stringify({ url: "https://remote.example.test/blob" }),
+  });
+
+const preflight = (tags: string[][], sha256?: string) =>
+  send("/upload", {
+    method: "HEAD",
+    headers: {
+      Authorization: authHeader(tags),
+      ...(sha256 ? { "X-SHA-256": sha256 } : {}),
+    },
+  });
+
+const del = (tags: string[][]) =>
+  send(`/${BLOB_HASH}`, {
+    method: "DELETE",
+    headers: { Authorization: authHeader(tags, "delete") },
+  });
 
 /** Run `fn` against an in-memory stand-in for Bunny Storage */
 async function withFakeStorage<T>(fn: () => Promise<T>): Promise<T> {
@@ -61,6 +97,9 @@ async function withFakeStorage<T>(fn: () => Promise<T>): Promise<T> {
   globalThis.fetch = async (input, init) => {
     const request = new Request(input, init);
     const url = new URL(request.url);
+    if (url.hostname === "remote.example.test") {
+      return new Response(BLOB, { headers: { "Content-Type": "text/plain" } });
+    }
     if (url.hostname !== config.storageHostname) {
       throw new Error(`Unexpected network request to ${url.hostname}`);
     }
@@ -87,7 +126,7 @@ Deno.test("route: a rejected upload is read to the end before the 401 is returne
 
 Deno.test("route: a token for another server is also drained before its 401", async () => {
   const { request, seen } = chunkedUpload(10, {
-    Authorization: authHeader([["server", "cdn.example.com"]]),
+    Authorization: authHeader([["x", "a".repeat(64)], ["server", "cdn.example.com"]]),
   });
   const response = await route(request, storage, config);
   eq(response.status, 401);
@@ -123,8 +162,69 @@ Deno.test("route: a BUD-11 scoped upload succeeds and its descriptor URL has no 
       config,
     )
   );
-  eq(response.status, 200);
+  eq(response.status, 201);
   const descriptor = await response.json();
   eq(descriptor.sha256, hash);
-  eq(descriptor.url, `https://blssm.test/blobs/${hash.slice(0, 2)}/${hash}`);
+  eq(descriptor.url, `https://blssm.test/${hash}.txt`);
+});
+
+Deno.test("PUT /upload: requires an x tag", async () => {
+  const response = await upload([]);
+  eq(response.status, 401);
+  eq((await response.json()).message, "Missing 'x' tag");
+});
+
+Deno.test("PUT /upload: accepts a matching X-SHA-256 and x tag", async () => {
+  eq((await upload([["x", BLOB_HASH]], { "X-SHA-256": BLOB_HASH })).status, 201);
+});
+
+Deno.test("PUT /upload: rejects X-SHA-256 outside the token's x tags", async () => {
+  eq((await upload([["x", OTHER_HASH]], { "X-SHA-256": BLOB_HASH })).status, 401);
+});
+
+Deno.test("PUT /upload: returns 409 when X-SHA-256 does not match the body", async () => {
+  eq((await upload([["x", OTHER_HASH]], { "X-SHA-256": OTHER_HASH })).status, 409);
+});
+
+Deno.test("PUT /upload: rejects a body outside the token's x tags", async () => {
+  eq((await upload([["x", OTHER_HASH]])).status, 401);
+});
+
+Deno.test("PUT /upload: rejects a malformed X-SHA-256", async () => {
+  eq((await upload([["x", BLOB_HASH]], { "X-SHA-256": "nope" })).status, 400);
+});
+
+Deno.test("PUT /mirror: requires an x tag", async () => {
+  eq((await mirror([])).status, 401);
+});
+
+Deno.test("PUT /mirror: accepts a matching x tag", async () => {
+  eq((await mirror([["x", BLOB_HASH]])).status, 201);
+});
+
+Deno.test("PUT /mirror: returns 409 when the blob does not match the x tag", async () => {
+  eq((await mirror([["x", OTHER_HASH]])).status, 409);
+});
+
+Deno.test("HEAD /upload: invalid auth is a 401", async () => {
+  eq((await preflight([])).status, 401);
+  eq((await preflight([["x", OTHER_HASH]], BLOB_HASH)).status, 401);
+});
+
+Deno.test("HEAD /upload: accepts an x tag matching X-SHA-256", async () => {
+  eq((await preflight([["x", BLOB_HASH]], BLOB_HASH)).status, 200);
+});
+
+Deno.test("HEAD /upload: rejects a malformed X-SHA-256", async () => {
+  eq((await preflight([["x", BLOB_HASH]], "nope")).status, 400);
+});
+
+Deno.test("DELETE: requires an x tag for the blob", async () => {
+  eq((await del([])).status, 401);
+  eq((await del([["x", OTHER_HASH]])).status, 401);
+});
+
+Deno.test("DELETE: any x tag can match, and the auth check then passes", async () => {
+  // The blob doesn't exist in the fake storage, so passing auth reaches the 404
+  eq((await del([["x", OTHER_HASH], ["x", BLOB_HASH]])).status, 404);
 });

@@ -145,5 +145,16 @@ export async function paymentGate(
   if (lnConfig) {
     bolt11 = (await createLn(requiredSats, lnConfig)) ?? undefined;
   }
+  // BUD-07: a 402 must offer a way to pay. With no mints and no invoice there isn't one.
+  if (!bolt11 && mintList.length === 0) {
+    return new Response(null, {
+      status: 503,
+      headers: {
+        "X-Reason": "payment_unavailable",
+        "Retry-After": "30",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
   return buildPaymentRequired(fileSizeBytes, mintList, btcUsd, pricing, bolt11);
 }

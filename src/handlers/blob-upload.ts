@@ -1,7 +1,8 @@
 import type { Config, BlobDescriptor } from "../types.ts";
 import type { StorageClient } from "../storage/client.ts";
 import { validateAuth } from "../auth/nostr.ts";
-import { addOwner, addToIndex, isBlocked } from "../storage/metadata.ts";
+import { addOwner, addToIndex, getMeta, isBlocked } from "../storage/metadata.ts";
+import { buildNip94, clientNip94Tags } from "../nip94.ts";
 import { sha256Hex, errorResponse, jsonResponse, isValidSha256 } from "../util.ts";
 import { checkAccess } from "../middleware/access.ts";
 import { paymentGate } from "../middleware/payment-gate.ts";
@@ -10,17 +11,25 @@ import { paymentGate } from "../middleware/payment-gate.ts";
  * BUD-02: PUT /upload — Upload a blob
  *
  * Requires Nostr auth with t=upload.
- * If auth event has `x` tag, uploaded blob hash must match.
- * Returns BlobDescriptor on success.
+ * BUD-11: the auth event must have an `x` tag matching the blob hash, which is
+ * checked before the body is read when the client sends X-SHA-256.
+ * Returns a BlobDescriptor: 201 if newly stored, 200 if it already existed.
  */
 export async function handleBlobUpload(
   request: Request,
   storage: StorageClient,
   config: Config,
 ): Promise<Response> {
+  const declaredHash = request.headers.get("X-SHA-256");
+  if (declaredHash !== null && !isValidSha256(declaredHash)) {
+    return errorResponse("Invalid X-SHA-256 header", 400);
+  }
+
   // Validate auth
   const auth = await validateAuth(request, {
     verb: "upload",
+    sha256: declaredHash ?? undefined,
+    requireHash: true,
     serverUrl: config.serverUrl,
   });
   if (!auth.authorized || !auth.pubkey) {
@@ -67,14 +76,17 @@ export async function handleBlobUpload(
   // Compute SHA-256
   const hash = sha256Hex(data);
 
-  // Validate hash if auth event specifies `x` tag(s)
+  if (declaredHash !== null && declaredHash !== hash) {
+    return errorResponse(`X-SHA-256 does not match the request body, which is ${hash}`, 409);
+  }
+
   // Batch auth events (e.g. nsyte) may include multiple x tags — accept if ANY matches
   if (auth.event) {
     const xTags = auth.event.tags.filter((t) => t[0] === "x");
-    if (xTags.length > 0 && !xTags.some((t) => t[1] === hash)) {
+    if (!xTags.some((t) => t[1] === hash)) {
       return errorResponse(
         `Hash mismatch: uploaded blob SHA-256 is ${hash}, not found in auth event x tags`,
-        400,
+        401,
       );
     }
   }
@@ -90,25 +102,18 @@ export async function handleBlobUpload(
     request.headers.get("Content-Type") ||
     "application/octet-stream";
 
-  // Extract NIP-94 metadata from auth event tags (BUD-08)
-  // Filter out protocol tags, keep everything else as [key, value] pairs
-  let nip94: string[][] | undefined;
-  if (auth.event) {
-    const nip94Tags = auth.event.tags.filter(
-      (t) => t.length >= 2 && !["t", "x", "expiration", "server"].includes(t[0]),
-    );
-    if (nip94Tags.length > 0) {
-      nip94 = nip94Tags;
-    }
-  }
+  const clientTags = auth.event ? clientNip94Tags(auth.event.tags) : undefined;
+  const alreadyStored = await getMeta(storage, hash) !== null;
 
   // Store blob
-  await storage.put(storage.blobPath(hash), data, contentType);
+  if (!await storage.put(storage.blobPath(hash), data, contentType)) {
+    return errorResponse("Storage unavailable; please retry", 503);
+  }
 
   // Update metadata and index in parallel (independent storage paths)
   const now = Math.floor(Date.now() / 1000);
   const [meta] = await Promise.all([
-    addOwner(storage, hash, auth.pubkey, data.byteLength, contentType, nip94),
+    addOwner(storage, hash, auth.pubkey, data.byteLength, contentType, clientTags),
     addToIndex(storage, auth.pubkey, {
       sha256: hash,
       size: data.byteLength,
@@ -117,17 +122,15 @@ export async function handleBlobUpload(
     }),
   ]);
 
-  // Return blob descriptor
+  const url = storage.blobUrl(hash, meta.type);
   const descriptor: BlobDescriptor = {
-    url: storage.blobUrl(hash),
+    url,
     sha256: hash,
-    size: data.byteLength,
-    type: contentType,
+    size: meta.size,
+    type: meta.type,
     uploaded: meta.uploaded,
+    nip94: buildNip94(url, meta.type, hash, meta.size, meta.nip94),
   };
-  if (nip94) {
-    descriptor.nip94 = nip94;
-  }
 
-  return jsonResponse(descriptor);
+  return jsonResponse(descriptor, alreadyStored ? 200 : 201);
 }

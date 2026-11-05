@@ -4,7 +4,7 @@ import { getIndex } from "../storage/metadata.ts";
 import { errorResponse, jsonResponse, isValidPubkey } from "../util.ts";
 
 /**
- * BUD-02: GET /list/<pubkey> — List blobs owned by a pubkey
+ * BUD-12: GET /list/<pubkey> — List blobs owned by a pubkey
  *
  * Supports pagination:
  * - cursor: sha256 of last blob from previous page (exclusive)
@@ -59,7 +59,7 @@ export async function handleBlobList(
 
   // Convert to BlobDescriptors
   const descriptors: BlobDescriptor[] = paginated.map((e) => ({
-    url: storage.blobUrl(e.sha256),
+    url: storage.blobUrl(e.sha256, e.type),
     sha256: e.sha256,
     size: e.size,
     type: e.type,

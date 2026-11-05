@@ -6,6 +6,8 @@ import { errorResponse, isValidSha256 } from "../util.ts";
 import { checkAccess } from "../middleware/access.ts";
 import { paymentGate } from "../middleware/payment-gate.ts";
 
+const MEDIA_TYPE_RE = /^[\w!#$&^.+-]+\/[\w!#$&^.+-]+(\s*;.*)?$/;
+
 /**
  * BUD-06: HEAD /upload — Upload pre-flight check
  *
@@ -13,7 +15,7 @@ import { paymentGate } from "../middleware/payment-gate.ts";
  * - X-SHA-256: blob hash
  * - X-Content-Length: blob size in bytes
  * - X-Content-Type: blob MIME type
- * - Authorization: optional Nostr auth event
+ * - Authorization: Nostr auth event, required as it is for PUT /upload
  *
  * Returns 200 if upload would be accepted, or appropriate error with X-Reason header.
  */
@@ -22,54 +24,68 @@ export async function handleUploadCheck(
   storage: StorageClient,
   config: Config,
 ): Promise<Response> {
-  // Validate auth if present
-  const authHeader = request.headers.get("Authorization");
-  if (authHeader) {
-    const auth = await validateAuth(request, {
-      verb: "upload",
-      serverUrl: config.serverUrl,
+  const sha256 = request.headers.get("X-SHA-256");
+  if (sha256 !== null && !isValidSha256(sha256)) {
+    return new Response(null, {
+      status: 400,
+      headers: { "X-Reason": "Invalid X-SHA-256 header" },
     });
-    if (!auth.authorized) {
-      return new Response(null, {
-        status: 403,
-        headers: { "X-Reason": auth.error || "Invalid authorization" },
-      });
-    }
+  }
 
-    // Access control — GATE-04/GATE-05: check after auth succeeds
-    // HEAD responses have no body — use X-Reason header (consistent with handler pattern)
-    if (auth.pubkey) {
-      const access = await checkAccess(storage, auth.pubkey, "upload");
-      if (!access.allowed) {
-        if (access.requiresPayment) {
-          // HEAD preflights: strip X-Cashu so paymentGate always returns 402
-          // (HEAD never consumes proofs — client will attach proof on the real PUT)
-          const headRequest = new Request(request.url, {
-            method: request.method,
-            headers: (() => {
-              const h = new Headers(request.headers);
-              h.delete("X-Cashu");
-              return h;
-            })(),
-          });
-          const sizeStr = request.headers.get("X-Content-Length");
-          const effectiveSize = sizeStr ? parseInt(sizeStr, 10) : 0;
-          const finalSize = isNaN(effectiveSize) ? 0 : effectiveSize;
-          const gate = await paymentGate(headRequest, storage, finalSize);
-          if (gate) {
-            // HEAD response: copy headers, null body (HTTP HEAD spec)
-            return new Response(null, {
-              status: gate.status,
-              headers: gate.headers,
-            });
-          }
-          // Payments disabled: fall through to 200
-        } else {
+  const contentType = request.headers.get("X-Content-Type");
+  if (contentType !== null && !MEDIA_TYPE_RE.test(contentType)) {
+    return new Response(null, {
+      status: 400,
+      headers: { "X-Reason": "Invalid X-Content-Type header" },
+    });
+  }
+
+  const auth = await validateAuth(request, {
+    verb: "upload",
+    sha256: sha256 ?? undefined,
+    requireHash: true,
+    serverUrl: config.serverUrl,
+  });
+  if (!auth.authorized) {
+    return new Response(null, {
+      status: 401,
+      headers: { "X-Reason": auth.error || "Invalid authorization" },
+    });
+  }
+
+  // Access control — GATE-04/GATE-05: check after auth succeeds
+  // HEAD responses have no body — use X-Reason header (consistent with handler pattern)
+  if (auth.pubkey) {
+    const access = await checkAccess(storage, auth.pubkey, "upload");
+    if (!access.allowed) {
+      if (access.requiresPayment) {
+        // HEAD preflights: strip X-Cashu so paymentGate always returns 402
+        // (HEAD never consumes proofs — client will attach proof on the real PUT)
+        const headRequest = new Request(request.url, {
+          method: request.method,
+          headers: (() => {
+            const h = new Headers(request.headers);
+            h.delete("X-Cashu");
+            return h;
+          })(),
+        });
+        const sizeStr = request.headers.get("X-Content-Length");
+        const effectiveSize = sizeStr ? parseInt(sizeStr, 10) : 0;
+        const finalSize = isNaN(effectiveSize) ? 0 : effectiveSize;
+        const gate = await paymentGate(headRequest, storage, finalSize);
+        if (gate) {
+          // HEAD response: copy headers, null body (HTTP HEAD spec)
           return new Response(null, {
-            status: 403,
-            headers: { "X-Reason": access.reason },
+            status: gate.status,
+            headers: gate.headers,
           });
         }
+        // Payments disabled: fall through to 200
+      } else {
+        return new Response(null, {
+          status: 403,
+          headers: { "X-Reason": access.reason },
+        });
       }
     }
   }
@@ -78,7 +94,7 @@ export async function handleUploadCheck(
   const contentLengthStr = request.headers.get("X-Content-Length");
   if (contentLengthStr) {
     const size = parseInt(contentLengthStr, 10);
-    if (isNaN(size)) {
+    if (!/^\d+$/.test(contentLengthStr)) {
       return new Response(null, {
         status: 400,
         headers: { "X-Reason": "Invalid X-Content-Length header" },
@@ -95,21 +111,11 @@ export async function handleUploadCheck(
     }
   }
 
-  // Check X-SHA-256
-  const sha256 = request.headers.get("X-SHA-256");
-  if (sha256) {
-    if (!isValidSha256(sha256)) {
-      return new Response(null, {
-        status: 400,
-        headers: { "X-Reason": "Invalid X-SHA-256 header" },
-      });
-    }
-    if (await isBlocked(storage, sha256)) {
-      return new Response(null, {
-        status: 403,
-        headers: { "X-Reason": "This content has been blocked" },
-      });
-    }
+  if (sha256 && await isBlocked(storage, sha256)) {
+    return new Response(null, {
+      status: 403,
+      headers: { "X-Reason": "This content has been blocked" },
+    });
   }
 
   return new Response(null, {

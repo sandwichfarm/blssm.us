@@ -41,9 +41,9 @@ export function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-/** Decode base64 string to Uint8Array */
+/** Decode base64 or base64url (with or without padding) to Uint8Array */
 export function fromBase64(b64: string): Uint8Array {
-  const binary = atob(b64);
+  const binary = atob(b64.replace(/-/g, "+").replace(/_/g, "/"));
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
@@ -67,6 +67,52 @@ export function isValidPubkey(pubkey: string): boolean {
 /** Get 2-char prefix for sharded storage paths */
 export function prefix(hash: string): string {
   return hash.substring(0, 2);
+}
+
+const TYPE_EXTENSIONS: Record<string, string> = {
+  "application/gzip": "gz",
+  "application/javascript": "js",
+  "application/json": "json",
+  "application/octet-stream": "bin",
+  "application/pdf": "pdf",
+  "application/wasm": "wasm",
+  "application/zip": "zip",
+  "audio/aac": "aac",
+  "audio/flac": "flac",
+  "audio/mp4": "m4a",
+  "audio/mpeg": "mp3",
+  "audio/ogg": "ogg",
+  "audio/opus": "opus",
+  "audio/wav": "wav",
+  "audio/webm": "weba",
+  "image/avif": "avif",
+  "image/bmp": "bmp",
+  "image/gif": "gif",
+  "image/heic": "heic",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/svg+xml": "svg",
+  "image/webp": "webp",
+  "text/css": "css",
+  "text/csv": "csv",
+  "text/html": "html",
+  "text/javascript": "js",
+  "text/markdown": "md",
+  "text/plain": "txt",
+  "video/mp4": "mp4",
+  "video/ogg": "ogv",
+  "video/quicktime": "mov",
+  "video/webm": "webm",
+};
+
+/** Lowercase MIME type without parameters such as charset */
+export function baseMediaType(type: string): string {
+  return type.split(";")[0].trim().toLowerCase() || "application/octet-stream";
+}
+
+/** File extension for a MIME type, or `bin` when there's no known one */
+export function extensionForType(type: string): string {
+  return TYPE_EXTENSIONS[baseMediaType(type)] ?? "bin";
 }
 
 /** Guess MIME type from file extension or content-type header */

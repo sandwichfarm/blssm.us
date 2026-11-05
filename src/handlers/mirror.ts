@@ -1,7 +1,8 @@
 import type { Config, BlobDescriptor } from "../types.ts";
 import type { StorageClient } from "../storage/client.ts";
 import { validateAuth } from "../auth/nostr.ts";
-import { addOwner, addToIndex, isBlocked } from "../storage/metadata.ts";
+import { addOwner, addToIndex, getMeta, isBlocked } from "../storage/metadata.ts";
+import { buildNip94, clientNip94Tags } from "../nip94.ts";
 import { sha256Hex, errorResponse, jsonResponse, isValidSha256 } from "../util.ts";
 import { checkAccess } from "../middleware/access.ts";
 import { paymentGate } from "../middleware/payment-gate.ts";
@@ -12,7 +13,7 @@ import { paymentGate } from "../middleware/payment-gate.ts";
  * Request body is JSON: { url: string }
  * Fetches the remote URL, computes SHA-256, stores blob.
  * Requires Nostr auth with t=upload.
- * If auth event has `x` tag, fetched blob hash must match.
+ * BUD-11: the auth event must have an `x` tag matching the fetched blob hash.
  *
  * SC4 exception: JSON body is read BEFORE access/payment check (needed for remote HEAD pricing).
  */
@@ -24,6 +25,7 @@ export async function handleMirror(
   // Validate auth
   const auth = await validateAuth(request, {
     verb: "upload",
+    requireHash: true,
     serverUrl: config.serverUrl,
   });
   if (!auth.authorized || !auth.pubkey) {
@@ -40,6 +42,9 @@ export async function handleMirror(
 
   if (!body.url || typeof body.url !== "string") {
     return errorResponse("Missing 'url' field", 400);
+  }
+  if (!URL.canParse(body.url) || !/^https?:$/.test(new URL(body.url).protocol)) {
+    return errorResponse("Invalid 'url' field", 400);
   }
 
   // Access control — GATE-02: runs after auth + JSON parse (SC4 approved exception)
@@ -97,14 +102,13 @@ export async function handleMirror(
   // Compute SHA-256
   const hash = sha256Hex(remoteData);
 
-  // Validate hash if auth event specifies `x` tag(s)
   // Batch auth events (e.g. nsyte) may include multiple x tags — accept if ANY matches
   if (auth.event) {
     const xTags = auth.event.tags.filter((t) => t[0] === "x");
-    if (xTags.length > 0 && !xTags.some((t) => t[1] === hash)) {
+    if (!xTags.some((t) => t[1] === hash)) {
       return errorResponse(
         `Hash mismatch: mirrored blob SHA-256 is ${hash}, not found in auth event x tags`,
-        400,
+        409,
       );
     }
   }
@@ -118,13 +122,18 @@ export async function handleMirror(
   const contentType =
     remoteResp.headers.get("Content-Type") || "application/octet-stream";
 
+  const clientTags = auth.event ? clientNip94Tags(auth.event.tags) : undefined;
+  const alreadyStored = await getMeta(storage, hash) !== null;
+
   // Store blob
-  await storage.put(storage.blobPath(hash), remoteData, contentType);
+  if (!await storage.put(storage.blobPath(hash), remoteData, contentType)) {
+    return errorResponse("Storage unavailable; please retry", 503);
+  }
 
   // Update metadata and index in parallel (independent storage paths)
   const now = Math.floor(Date.now() / 1000);
   const [meta] = await Promise.all([
-    addOwner(storage, hash, auth.pubkey, remoteData.byteLength, contentType),
+    addOwner(storage, hash, auth.pubkey, remoteData.byteLength, contentType, clientTags),
     addToIndex(storage, auth.pubkey, {
       sha256: hash,
       size: remoteData.byteLength,
@@ -133,14 +142,15 @@ export async function handleMirror(
     }),
   ]);
 
-  // Return blob descriptor
+  const url = storage.blobUrl(hash, meta.type);
   const descriptor: BlobDescriptor = {
-    url: storage.blobUrl(hash),
+    url,
     sha256: hash,
-    size: remoteData.byteLength,
-    type: contentType,
+    size: meta.size,
+    type: meta.type,
     uploaded: meta.uploaded,
+    nip94: buildNip94(url, meta.type, hash, meta.size, meta.nip94),
   };
 
-  return jsonResponse(descriptor);
+  return jsonResponse(descriptor, alreadyStored ? 200 : 201);
 }

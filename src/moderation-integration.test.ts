@@ -44,7 +44,7 @@ Deno.test("moderation integration: report blocks both URL forms, uploads and mir
   };
   const auth = () => ({
     Authorization: `Nostr ${
-      btoa(JSON.stringify(sign(24242, [["t", "upload"], ["x", hash]])))
+      btoa(JSON.stringify(sign(24242, [["t", "upload"], ["x", hash], ["expiration", String(Math.floor(Date.now() / 1000) + 3600)]])))
     }`,
   });
   globalThis.fetch = async (input, init) => {
@@ -97,7 +97,7 @@ Deno.test("moderation integration: report blocks both URL forms, uploads and mir
         storage,
         config,
       );
-    eq((await upload()).status, 200);
+    eq((await upload()).status, 201);
     await storage.putJson("moderation/policy.json", {
       mode: "all",
       trustedReporters: [],
@@ -128,7 +128,7 @@ Deno.test("moderation integration: report blocks both URL forms, uploads and mir
       (await route(
         new Request(config.serverUrl + "/upload", {
           method: "HEAD",
-          headers: { "X-SHA-256": hash },
+          headers: { ...auth(), "X-SHA-256": hash },
         }),
         storage,
         config,
