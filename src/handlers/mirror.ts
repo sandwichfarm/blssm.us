@@ -119,7 +119,9 @@ export async function handleMirror(
     remoteResp.headers.get("Content-Type") || "application/octet-stream";
 
   // Store blob
-  await storage.put(storage.blobPath(hash), remoteData, contentType);
+  if (!await storage.put(storage.blobPath(hash), remoteData, contentType)) {
+    return errorResponse("Storage unavailable; please retry", 503);
+  }
 
   // Update metadata and index in parallel (independent storage paths)
   const now = Math.floor(Date.now() / 1000);

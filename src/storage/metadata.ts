@@ -12,6 +12,11 @@ export async function putMeta(storage: StorageClient, meta: BlobMeta): Promise<b
   return await storage.putJson(storage.metaPath(meta.sha256), meta);
 }
 
+/** Fail the request rather than report success for a write that didn't happen */
+function assertWritten(written: boolean, what: string): void {
+  if (!written) throw new Error(`Storage write failed: ${what}`);
+}
+
 /** Add a pubkey as owner of a blob (creates meta if needed) */
 export async function addOwner(
   storage: StorageClient,
@@ -43,7 +48,7 @@ export async function addOwner(
     };
   }
 
-  await putMeta(storage, meta);
+  assertWritten(await putMeta(storage, meta), `metadata for ${sha256}`);
   return meta;
 }
 
@@ -59,14 +64,15 @@ export async function removeOwner(
   meta.owners = meta.owners.filter((o) => o !== pubkey);
   if (meta.owners.length === 0) {
     // No owners left — delete blob and metadata
-    await Promise.all([
+    const deleted = await Promise.all([
       storage.delete(storage.blobPath(sha256)),
       storage.delete(storage.metaPath(sha256)),
     ]);
+    assertWritten(deleted.every(Boolean), `deletion of ${sha256}`);
     return { deleted: true, meta };
   }
 
-  await putMeta(storage, meta);
+  assertWritten(await putMeta(storage, meta), `metadata for ${sha256}`);
   return { deleted: false, meta };
 }
 
@@ -86,7 +92,7 @@ export async function addToIndex(
   const exists = index.some((e) => e.sha256 === entry.sha256);
   if (!exists) {
     index.push(entry);
-    await storage.putJson(storage.listPath(pubkey), index);
+    assertWritten(await storage.putJson(storage.listPath(pubkey), index), `index for ${pubkey}`);
   }
 }
 
@@ -99,7 +105,7 @@ export async function removeFromIndex(
   const index = await getIndex(storage, pubkey);
   const filtered = index.filter((e) => e.sha256 !== sha256);
   if (filtered.length !== index.length) {
-    await storage.putJson(storage.listPath(pubkey), filtered);
+    assertWritten(await storage.putJson(storage.listPath(pubkey), filtered), `index for ${pubkey}`);
   }
 }
 
