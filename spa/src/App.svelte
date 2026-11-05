@@ -303,15 +303,16 @@
 
   const buds = $derived(
     [
-      { id: "01", name: "Server Requirements & Blob Retrieval", status: "full" },
-      { id: "02", name: "Blob Upload & Management", status: "full" },
-      { id: "04", name: "Mirroring", status: "full" },
-      { id: "06", name: "Upload Pre-flight", status: "full" },
+      { id: "01", name: "Server Requirements & Blob Retrieval", status: "partial" },
+      { id: "02", name: "Blob Upload", status: "partial" },
+      { id: "04", name: "Mirroring", status: "partial" },
+      { id: "06", name: "Upload Pre-flight", status: "partial" },
       ...(serverInfo?.paymentsEnabled
         ? [{ id: "07", name: "Payments", status: "partial" as const }]
         : []),
-      { id: "08", name: "File Metadata (NIP-94)", status: "full" },
-      { id: "09", name: "Content Reporting", status: "full", href: "/report" },
+      { id: "08", name: "File Metadata (NIP-94)", status: "partial" },
+      { id: "09", name: "Content Reporting", status: "partial", href: "/report" },
+      { id: "12", name: "Blob Listing & Deletion", status: "partial" },
     ]
   );
 

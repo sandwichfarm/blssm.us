@@ -6,14 +6,38 @@ A [Blossom](https://github.com/hzrd149/blossom) server running on [Bunny CDN Edg
 
 | Spec | Description | Status |
 |------|-------------|--------|
-| [BUD-01](https://github.com/hzrd149/blossom/blob/master/buds/01.md) | Blob retrieval (GET/HEAD) | ✓ |
-| [BUD-02](https://github.com/hzrd149/blossom/blob/master/buds/02.md) | Upload, deletion, listing | ✓ |
-| [BUD-04](https://github.com/hzrd149/blossom/blob/master/buds/04.md) | Mirroring from remote URL | ✓ |
-| [BUD-05](https://github.com/hzrd149/blossom/blob/master/buds/05.md) | Media upload | ✓ |
-| [BUD-06](https://github.com/hzrd149/blossom/blob/master/buds/06.md) | Upload preflight check | ✓ |
-| [BUD-07](https://github.com/hzrd149/blossom/blob/master/buds/07.md) | Payment response framework | Stub |
-| [BUD-08](https://github.com/hzrd149/blossom/blob/master/buds/08.md) | NIP-94 metadata | ✓ |
-| [BUD-09](https://github.com/hzrd149/blossom/blob/master/buds/09.md) | Content reporting (NIP-56) | ✓ |
+| [BUD-01](https://github.com/hzrd149/blossom/blob/master/buds/01.md) | Blob retrieval (GET/HEAD) | Partial |
+| [BUD-02](https://github.com/hzrd149/blossom/blob/master/buds/02.md) | Upload | Partial |
+| [BUD-04](https://github.com/hzrd149/blossom/blob/master/buds/04.md) | Mirroring from remote URL | Partial |
+| [BUD-06](https://github.com/hzrd149/blossom/blob/master/buds/06.md) | Upload preflight check | Partial |
+| [BUD-07](https://github.com/hzrd149/blossom/blob/master/buds/07.md) | Payments (off on blssm.us) | Partial |
+| [BUD-08](https://github.com/hzrd149/blossom/blob/master/buds/08.md) | NIP-94 metadata | Partial |
+| [BUD-09](https://github.com/hzrd149/blossom/blob/master/buds/09.md) | Content reporting (NIP-56) | Partial |
+| [BUD-12](https://github.com/hzrd149/blossom/blob/master/buds/12.md) | Listing and deletion | Partial |
+
+### Known gaps
+
+- **BUD-01:**
+  - Preflight responses don't send the required `Access-Control-Allow-Headers: Authorization, *`.
+  - `HEAD` responses on blssm.us have no `Content-Length`. The handler sets it, but it doesn't reach the client.
+  - `Range` requests aren't supported.
+  - `GET` with `Accept: application/json` returns a descriptor instead of the blob.
+- **BUD-02:**
+  - New uploads return `200` instead of `201`.
+  - Descriptor URLs have no file extension.
+- **BUD-04:** New mirrors return `200` instead of `201`, and descriptor URLs have the same gap as BUD-02.
+- **BUD-06:**
+  - Browsers can't send `X-Content-Length`, because CORS doesn't allow it.
+  - `X-Content-Type` is ignored.
+  - A request with no token gets `200`, though the upload itself would get `401`.
+- **BUD-07:**
+  - Browsers can't send or read `X-Cashu` and `X-Lightning`, because CORS doesn't allow them.
+  - In Lightning-only mode, a failed invoice returns `402` with no payment header.
+- **BUD-08:** The `nip94` field only repeats extra tags from the auth token. The server doesn't generate it, and `/mirror` doesn't return it.
+- **BUD-09:**
+  - Only the first `x` tag in a report is processed.
+  - No rules or terms of service are published.
+- **BUD-12:** Descriptor URLs have the same gap as BUD-02.
 
 ## API Endpoints
 
@@ -25,8 +49,6 @@ A [Blossom](https://github.com/hzrd149/blossom) server running on [Bunny CDN Edg
 | `DELETE` | `/<sha256>` | ✓ | Delete blob |
 | `GET` | `/list/<pubkey>` | | List blobs by owner |
 | `PUT` | `/mirror` | ✓ | Mirror blob from URL |
-| `PUT` | `/media` | ✓ | Upload media |
-| `HEAD` | `/media` | ✓ | Media preflight check |
 | `PUT` | `/report` | | Report content |
 
 Authentication uses Nostr kind 24242 events with Schnorr signature verification (`Authorization: Nostr <base64>`).
