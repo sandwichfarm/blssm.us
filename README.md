@@ -6,14 +6,19 @@ A [Blossom](https://github.com/hzrd149/blossom) server running on [Bunny CDN Edg
 
 | Spec | Description | Status |
 |------|-------------|--------|
-| [BUD-01](https://github.com/hzrd149/blossom/blob/master/buds/01.md) | Blob retrieval (GET/HEAD) | ✓ |
-| [BUD-02](https://github.com/hzrd149/blossom/blob/master/buds/02.md) | Upload, deletion, listing | ✓ |
+| [BUD-01](https://github.com/hzrd149/blossom/blob/master/buds/01.md) | Blob retrieval (GET/HEAD) | Partial |
+| [BUD-02](https://github.com/hzrd149/blossom/blob/master/buds/02.md) | Upload | ✓ |
 | [BUD-04](https://github.com/hzrd149/blossom/blob/master/buds/04.md) | Mirroring from remote URL | ✓ |
 | [BUD-06](https://github.com/hzrd149/blossom/blob/master/buds/06.md) | Upload preflight check | ✓ |
-| [BUD-07](https://github.com/hzrd149/blossom/blob/master/buds/07.md) | Payment response framework | Stub |
+| [BUD-07](https://github.com/hzrd149/blossom/blob/master/buds/07.md) | Payments (off on blssm.us) | ✓ |
 | [BUD-08](https://github.com/hzrd149/blossom/blob/master/buds/08.md) | NIP-94 metadata | ✓ |
 | [BUD-09](https://github.com/hzrd149/blossom/blob/master/buds/09.md) | Content reporting (NIP-56) | ✓ |
 | [BUD-11](https://github.com/hzrd149/blossom/blob/master/buds/11.md) | Nostr authorization | ✓ |
+| [BUD-12](https://github.com/hzrd149/blossom/blob/master/buds/12.md) | Listing and deletion | ✓ |
+
+### Known gaps
+
+- **BUD-01:** On blssm.us, responses have no `Content-Length`, including `HEAD`, and `Range` requests get the whole blob. The handler sets `Content-Length` and forwards `Range`, but the headers don't get through Bunny's edge.
 
 ## API Endpoints
 
@@ -21,7 +26,7 @@ A [Blossom](https://github.com/hzrd149/blossom) server running on [Bunny CDN Edg
 |--------|------|------|-------------|
 | `PUT` | `/upload` | ✓ | Upload blob |
 | `HEAD` | `/upload` | ✓ | Upload preflight check |
-| `GET/HEAD` | `/<sha256>` | | Retrieve blob or descriptor |
+| `GET/HEAD` | `/<sha256>` | | Retrieve blob, with an optional file extension |
 | `DELETE` | `/<sha256>` | ✓ | Delete blob |
 | `GET` | `/list/<pubkey>` | | List blobs by owner |
 | `PUT` | `/mirror` | ✓ | Mirror blob from URL |

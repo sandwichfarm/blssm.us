@@ -303,16 +303,17 @@
 
   const buds = $derived(
     [
-      { id: "01", name: "Server Requirements & Blob Retrieval", status: "full" },
-      { id: "02", name: "Blob Upload & Management", status: "full" },
+      { id: "01", name: "Server Requirements & Blob Retrieval", status: "partial" },
+      { id: "02", name: "Blob Upload", status: "full" },
       { id: "04", name: "Mirroring", status: "full" },
       { id: "06", name: "Upload Pre-flight", status: "full" },
       ...(serverInfo?.paymentsEnabled
-        ? [{ id: "07", name: "Payments", status: "partial" as const }]
+        ? [{ id: "07", name: "Payments", status: "full" as const }]
         : []),
       { id: "08", name: "File Metadata (NIP-94)", status: "full" },
       { id: "09", name: "Content Reporting", status: "full", href: "/report" },
       { id: "11", name: "Nostr Authorization", status: "full" },
+      { id: "12", name: "Blob Listing & Deletion", status: "full" },
     ]
   );
 
@@ -414,6 +415,12 @@
       <div class="flex items-center gap-3">
         <button onclick={() => navigate("/")} class="text-zinc-500 hover:text-zinc-300 text-sm">&larr; Back</button>
         <h2 class="text-2xl font-semibold">Report Content</h2>
+      </div>
+
+      <div class="border border-zinc-800 rounded-lg p-4 text-sm text-zinc-400 space-y-2">
+        <h3 class="font-medium text-zinc-300">How reports are handled</h3>
+        <p>Reports are signed Nostr events and are kept for the server's operator to review. Depending on the moderation policy in force, a report can also block a blob automatically.</p>
+        <p>A blocked blob can't be retrieved, uploaded or mirrored here. The operator can reverse a block. Copies people have already saved can't be recalled.</p>
       </div>
 
       <div class="border border-zinc-800 rounded-lg p-4 space-y-4">
