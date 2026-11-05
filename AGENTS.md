@@ -79,6 +79,8 @@ After a merge, confirm the workflow succeeded, then exercise the changed behavio
 
 Production checks must leave nothing behind. Use reads and requests that will be rejected, signed with public test key 1 (`0000000000000000000000000000000000000000000000000000000000000001`). Don't store blobs or change moderation state unless asked.
 
+When a test upload has been approved, use a short, generic plain-text string typed by hand. Don't use images, documents or anything else that can carry EXIF or embedded metadata, don't put identifying details in the content or the token's tags, and delete the blob afterwards.
+
 ## Repo notes
 
 - `.planning/` is a historical record that doesn't track current work, and parts of it are out of date. Trust the code over it, and leave it alone unless asked.
